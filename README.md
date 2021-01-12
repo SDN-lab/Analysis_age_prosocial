@@ -1,6 +1,6 @@
 **This folder contains the script to run analysis for the paper on age and prosocial behaviour**
 
-Data for the study comes from the [International Collaboration on the Social & Moral Psychology of COVID-19] (https://icsmp-covid19.netlify.app/)
+Data for the study comes from the [International Collaboration on the Social & Moral Psychology of COVID-19](https://icsmp-covid19.netlify.app/)
 
 [Click here to view plots and main results](https://github.com/SDN-lab/Analysis_age_prosocial/blob/master/Analysis.md)
 
