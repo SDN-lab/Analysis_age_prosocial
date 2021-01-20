@@ -78,7 +78,7 @@ pvalr <- function(pvals, sig.limit = .001, digits = 3, html = FALSE) {
 
 cntry.list <- read.csv("data/List_countries.csv", sep = ",", header = TRUE) # list of countries
 
-df <- read.csv("data/Person_level_score_final_totals_country_data_generosity_corrected.csv", sep = ",", header = TRUE, na.strings = "NaN") # full data
+df <- read.csv("data/Person_level_score_revised_Jan_2021_totals_country_data.csv", sep = ",", header = TRUE, na.strings = "NaN") # full data
 
 # remove rows with ages above 100 or below 18
 df$age[df$age >= 100] <- NA 
@@ -199,7 +199,7 @@ df2 <- subset(full, AnalysisGroup == 2)
 df.list <- list(df1,df2)
 
 # select columns want to get summary stats for
-df.totals <- lapply(df.list, function(df) {df %>% dplyr::select("age", "Adjusted_age", "Contct4M", "generosity2", "generosity3", "generosity_sum", "generosity_nat_bias", starts_with("mcoop"), "PoliticId", "moral_circle", "Ladder", ends_with("_average"), ends_with("_sum"), "SelfEsteem", "x2018GNI", contains("death"), contains("cases"), "date_count")})
+df.totals <- lapply(df.list, function(df) {df %>% dplyr::select("age", "Adjusted_age", "Contct4M", "generosity2", "generosity3", "generosity_sum", "generosity_nat_bias", starts_with("mcoop"), "PoliticId", "moral_circle", "Ladder", "risk1", ends_with("_average"), ends_with("_sum"), "SelfEsteem", "x2018GNI", contains("death"), contains("cases"), "date_count")})
 
 # calculate means
 means <- lapply(df.totals, function(df) {
@@ -229,9 +229,16 @@ gender.means.boot <- lapply(df.list, function(df){df %>%
                      # ymax.i = mean_cl_boot(generosity3)[[3]],
                      y.d = mean_cl_boot(Contct4M)[[1]],
                      ymin.d = mean_cl_boot(Contct4M)[[2]],
-                     ymax.d = mean_cl_boot(Contct4M)[[3]])})
+                     ymax.d = mean_cl_boot(Contct4M)[[3]],
+                     count = n())})
 
 gender.means.boot <- bind_rows(gender.means.boot[[1]], gender.means.boot[[2]])
+gender.means.boot$per <- c(gender.means.boot$count[1:3] / nrow(df1), gender.means.boot$count[4:6] / nrow(df2))
+
+# correlation between prosocial outcomes
+
+corr1 <- rcorr(df1$Contct4M, df1$generosity_sum)
+corr2 <- rcorr(df2$Contct4M, df2$generosity_sum)
 
 # create a dataframe for each subsample & make list to apply over
 df.c1 <- subset(full.c, AnalysisGroup == 1)
@@ -325,7 +332,7 @@ df.c.list <- list(df.c1,df.c2)
 d.log.lad.list <- lapply(df.c.list, function(df) {
   df[,c("donated_logit", "age", "Ladder")] <- scale(df[,c("donated_logit", "age", "Ladder")])
   d.log.lad <- lmer(donated_logit ~ sex + Ladder + age * charity + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite")
+  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
   d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
@@ -348,7 +355,7 @@ d.log.lad.n.list <- lapply(df.c.list, function(df) {
   df <- subset(df, charity == "national")
   df[,c("donated_logit", "age", "Ladder")] <- scale(df[,c("donated_logit", "age", "Ladder")])
   d.log.lad <- lmer(donated_logit ~ sex + Ladder + age + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite")
+  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
   d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
@@ -371,7 +378,7 @@ d.log.lad.i.list <- lapply(df.c.list, function(df) {
   df <- subset(df, charity == "international")
   df[,c("donated_logit", "age", "Ladder")] <- scale(df[,c("donated_logit", "age", "Ladder")])
   d.log.lad <- lmer(donated_logit ~ sex + Ladder + age + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite")
+  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
   d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
@@ -530,7 +537,7 @@ df.obw.c$Income[df.obw.c$Country == "SINGAPORE"] <- scale(df.obw.c$Income[df.obw
 df.obw.c$Income[df.obw.c$Country == "UKRAINE"] <- scale(df.obw.c$Income[df.obw.c$Country == "UKRAINE"])
 
 d.log.obw <- lmer(donated_logit ~ sex + Income + age * charity + (1 | Country) + (0 + Income | Country) + (0 + age | Country), data = df.obw.c, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-d.log.obw.coeff <- model_parameters(d.log.obw, df_method = "satterthwaite")
+d.log.obw.coeff <- model_parameters(d.log.obw, df_method = "satterthwaite", standardize = "refit")
 df.err <- model_parameters(d.log.obw)
 df.err <- df.err$df_error[1]
 d.log.obw.coeff$d <- t_to_d(d.log.obw.coeff$t, df.err)
@@ -576,7 +583,7 @@ if (saveplots == 1) {dev.off()}
 ```{r echo=FALSE, warning=FALSE, fig.align="center", fig.width=10.4, fig.height=12}
 
 # create a dataframe with the country information and columns of NA to fill in below
-countrycols <- c("code", "region", "distancing", "national", "international", "bias", "n", "gni", "sd_total_deaths", "sd_total_cases", "sd_deaths_slope", "sd_cases_slope")
+countrycols <- c("code", "region", "distancing", "national", "international", "bias", "n", "gni", "sd_total_deaths", "sd_total_cases", "sd_deaths_slope", "sd_cases_slope", "represent")
 country.results <- data.frame(cntry.list$ISO3, cntry.list$Map.Name, matrix(data = NA, nrow = nrow(cntry.list), ncol = (length(countrycols) - 2)))
 names(country.results) <- countrycols
 country.results.p <- country.results[,1:6]
@@ -590,10 +597,10 @@ for (c in cntry.list$ISO3) {
   cdf[,c("age", "Contct4M", "generosity2_logit", "generosity3_logit", "generosity_nat_bias", "Ladder", "risk1")] <- scale(cdf[,c("age", "Contct4M", "generosity2_logit", "generosity3_logit", "generosity_nat_bias", "Ladder", "risk1")])
   
   # run linear model for each outcome & extract parameters
-    cntry.risk.d <- model_parameters(lm(Contct4M ~ sex + risk1 + age, data = cdf))
-    cntry.lad.n <- model_parameters(lm(generosity2_logit ~ sex + Ladder + age, data = cdf))
-    cntry.lad.i <- model_parameters(lm(generosity3_logit ~ sex + Ladder + age, data = cdf))
-    cntry.lad.b <- model_parameters(lm(generosity_nat_bias ~ sex + Ladder + age, data = cdf))
+    cntry.risk.d <- model_parameters(lm(Contct4M ~ sex + risk1 + age, data = cdf), standardize = "refit")
+    cntry.lad.n <- model_parameters(lm(generosity2_logit ~ sex + Ladder + age, data = cdf), standardize = "refit")
+    cntry.lad.i <- model_parameters(lm(generosity3_logit ~ sex + Ladder + age, data = cdf), standardize = "refit")
+    cntry.lad.b <- model_parameters(lm(generosity_nat_bias ~ sex + Ladder + age, data = cdf), standardize = "refit")
     country.results[country.results$code == c, 3:6] = c(tail(cntry.risk.d$Coefficient,1),
                                                         tail(cntry.lad.n$Coefficient,1), 
                                                         tail(cntry.lad.i$Coefficient,1),
@@ -609,7 +616,10 @@ for (c in cntry.list$ISO3) {
     country.results$sd_total_cases[country.results$code == c] = cdf$SDtotal_cases[1]
     country.results$sd_deaths_slope[country.results$code == c] = cdf$SDrolling_deaths_slope[1]
     country.results$sd_cases_slope[country.results$code == c] = cdf$SDrolling_cases_slope[1]
+    country.results$represent[country.results$code == c] = cdf$REPRESENT[1]
 }
+
+country.results.all <- country.results
 
 # select countries with more than 450 participants
 country.results.p <- country.results.p[country.results$n > 450, ]
@@ -649,13 +659,13 @@ df.europe <- subset(df.world, continent == "Europe" & region != "Russia")
 
 world.distance <- ggplot(df.world, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = distancing), color = "white", size = .1) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, na.value = "#ECECEC", guide = NULL) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.35, .35), na.value = "#ECECEC", guide = NULL) +
   theme_void() +
   draw_plot_label("Distancing", x = -180, y = -10, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
 
 europe.distance <- ggplot(df.europe, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = distancing), color = "white", size = .1) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.35, .35), na.value = "#ECECEC", name = expression(beta)) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.35, .35), breaks = c(-0.2, 0, 0.2), na.value = "#ECECEC", name = expression(beta)) +
   theme_void() +
   guides(fill = guide_colorbar(title.hjust = 0.05)) + 
   theme(legend.text = element_text(size = axtext),
@@ -663,13 +673,13 @@ europe.distance <- ggplot(df.europe, aes(long, lat, group = group)) +
 
 world.national <- ggplot(df.world, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = national), color = "white", size = .1) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, na.value = "#ECECEC", guide = NULL) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.28, .28), na.value = "#ECECEC", guide = NULL) +
   theme_void() +
   draw_plot_label("National giving", x = -180, y = -20, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
 
 europe.national <- ggplot(df.europe, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = national), color = "white", size = .1) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.35, .35), na.value = "#ECECEC", name = expression(beta)) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.28, .28), breaks = c(-0.2, 0, 0.2), na.value = "#ECECEC", name = expression(beta)) +
   theme_void() +
   guides(fill = guide_colorbar(title.hjust = 0.05)) + 
   theme(legend.text = element_text(size = axtext),
@@ -677,13 +687,13 @@ europe.national <- ggplot(df.europe, aes(long, lat, group = group)) +
 
 world.inter <- ggplot(df.world, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = international), color = "white", size = .1) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, na.value = "#ECECEC", guide = NULL) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.28, .28), na.value = "#ECECEC", guide = NULL) +
   theme_void() +
   draw_plot_label("International giving", x = -180, y = -35, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
 
 europe.inter <- ggplot(df.europe, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = international), color = "white", size = .1) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.35, .35), na.value = "#ECECEC", name = expression(beta)) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.28, .28), breaks = c(-0.2, 0, 0.2), na.value = "#ECECEC", name = expression(beta)) +
   theme_void() +
   guides(fill = guide_colorbar(title.hjust = 0.05)) + 
   theme(legend.text = element_text(size = axtext),
@@ -721,9 +731,6 @@ df.c.list <- lapply(df.c.list, function(df) {
 
 # reduce models by removing a term and coparing
 d.log.lad.list.slope.world.inter <- lapply(df.c.list, function(df) {
-  # df.cor <- df %>% dplyr::select("Ladder", "age", "world_total_deaths", "world_rolling_deaths_slope", "total_deaths", "rolling_deaths_slope", "x2018GNI")
-  # model.cor <- rcorr(as.matrix(df.cor))
-  # print(model.cor[["r"]]) # correlation between predictors to check multicolinearity
   # d.log.lad.clf.inter.full <- lmer(donated_logit ~ sex + Ladder +
   #                                    age*charity*world_total_deaths +
   #                                    age*charity*world_rolling_deaths_slope +
@@ -732,27 +739,28 @@ d.log.lad.list.slope.world.inter <- lapply(df.c.list, function(df) {
   #                                    age*charity*x2018GNI +
   #                                    (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
   #                                  data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  d.log.lad.clf.inter1 <- lmer(donated_logit ~ sex + Ladder + age*charity +
-                                    age*world_total_deaths + charity*world_total_deaths +
-                                    world_rolling_deaths_slope + 
-                                    age*charity*total_deaths +
-                                    age*charity*rolling_deaths_slope +
-                                    age*x2018GNI + charity*x2018GNI +
-                                    (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
-                                   data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  d.log.lad.clf.inter2 <- lmer(donated_logit ~ sex + Ladder + age*charity +
-                                    age*world_total_deaths + charity*world_total_deaths +
-                                    world_rolling_deaths_slope + 
-                                    age*charity*total_deaths +
-                                    age*charity*rolling_deaths_slope +
-                                    age*x2018GNI + charity*x2018GNI +
-                                    (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
-                                   data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  # print(anova(d.log.lad.clf.inter1, d.log.lad.clf.inter2))
+  d.log.lad.clf.inter1 <- lmer(donated_logit ~ sex + Ladder +
+                                 age*charity +
+                                 age*world_total_deaths + charity*world_total_deaths +
+                                 world_rolling_deaths_slope + 
+                                 age*charity*total_deaths +
+                                 age*charity*rolling_deaths_slope +
+                                 age*x2018GNI + charity*x2018GNI +
+                                 (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
+                               data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  d.log.lad.clf.inter2 <- lmer(donated_logit ~ sex + Ladder +
+                                 age*charity +
+                                 age*world_total_deaths + charity*world_total_deaths +
+                                 age*charity*total_deaths +
+                                 age*charity*rolling_deaths_slope +
+                                 age*x2018GNI + charity*x2018GNI + 
+                                 (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
+                               data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  print(anova(d.log.lad.clf.inter1, d.log.lad.clf.inter2))
   
-  # d.log.lad.coeff <- summary(d.log.lad.clf.inter2)[["coefficients"]]
-  # d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
-  # print(d.log.lad.coeff.k)
+  d.log.lad.coeff <- summary(d.log.lad.clf.inter2)[["coefficients"]]
+  d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
+  print(d.log.lad.coeff.k)
   return(d.log.lad.clf.inter2)
 })
 
@@ -830,14 +838,14 @@ df.c.list <- lapply(df.c.list, function(df) {
 })
 
 d.log.lad.clf.list <- lapply(df.c.list, function(df) {
-  d.log.lad.clf <- lmer(donated_logit ~ sex + Ladder + age*charity +
-                          age*world_total_deaths + charity*world_total_deaths +
-                          world_rolling_deaths_slope + 
-                          age*charity*total_deaths +
-                          age*charity*rolling_deaths_slope +
-                          age*x2018GNI + charity*x2018GNI +
-                          (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
-                        data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  d.log.lad.clf <- lmer(donated_logit ~ sex + Ladder +
+                                 age*charity +
+                                 age*world_total_deaths + charity*world_total_deaths +
+                                 age*charity*total_deaths +
+                                 age*charity*rolling_deaths_slope +
+                                 age*x2018GNI + charity*x2018GNI + 
+                                 (1 | Country) + (0 + Ladder | Country) + (0 + age | Country),
+                               data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
   
   d.log.lad.coeff <- model_parameters(d.log.lad.clf, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad.clf)
@@ -854,7 +862,7 @@ d.log.lad.clf.results <- d.log.lad.clf.results[,c(2:9, 11:18)]
 d.log.lad.clf.results[,colnames(d.log.lad.clf.results) != "p" & colnames(d.log.lad.clf.results) != "p.1"] = round(d.log.lad.clf.results[,colnames(d.log.lad.clf.results) != "p" & colnames(d.log.lad.clf.results) != "p.1"], 2)
 d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p"] = pvalr(d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p"])
 d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p.1"] = pvalr(d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p.1"])
-rownames(d.log.lad.clf.results) <- c("Intercept", "Gender (F > M)", "Subjective wealth", "Age", "Charity (I > N)", "Deaths - DTW", "Deaths - DRW", "Deaths - DTC", "Deaths - DRC", "Country wealth", "Age * Charity", "Age * DTW", "Charity * DTW", "Age * DTC", "Charity * DTC", "Age * DRC", "Charity * DRC", "Age * CW", "Charity * CW", "Age * Charity * DTC", "Age * Charity * DRC")
+rownames(d.log.lad.clf.results) <- c("Intercept", "Gender (F > M)", "Subjective wealth", "Age", "Charity (I > N)", "Deaths - DTW", "Deaths - DTC", "Deaths - DRC", "Country wealth", "Age * Charity", "Age * DTW", "Charity * DTW", "Age * DTC", "Charity * DTC", "Age * DRC", "Charity * DRC", "Age * CW", "Charity * CW", "Age * Charity * DTC", "Age * Charity * DRC")
 if (writecsvs == 1) {write.csv(x = d.log.lad.clf.results, file = "output/Charity_country_model_results.csv")}
 
 ```
@@ -922,6 +930,7 @@ fa.list <- lapply(df.list, function(df) {
   df.fa <- df.totals %>% 
     dplyr::select(-contains(c("mcoop_average", "risk_average", "ctheory", "contact", "hygiene", "psupport")))  %>% 
     drop_na
+  # print(nrow(df.fa))
   df.fa$moral_circle <- scales::rescale(df.fa$moral_circle, to = c(0,10))
   
   # print(fa.parallel(df.fa, fa="both", n.iter=100,
@@ -930,7 +939,7 @@ fa.list <- lapply(df.list, function(df) {
   fa.oblimin <- fa(df.fa, nfactors=nfact, rotate="oblimin", scores="regression")
   # fa.diagram(fa.oblimin, simple=FALSE)
   # print(fa.oblimin)
-  
+  # 
   # print(fa.oblimin[["score.cor"]])
 
   return(fa.oblimin)
@@ -940,7 +949,7 @@ fa.list <- lapply(df.list, function(df) {
 # Put results from subsample 1 on left & subsample 2 on right
 fa.results <- bind_cols(as_tibble(fa.list[[1]][["loadings"]][,], rownames = "Measure"), as_tibble(fa.list[[2]][["loadings"]][,]))
 fa.results[,2:ncol(fa.results)] <- round(fa.results[,2:ncol(fa.results)],2)
-fa.results[fa.results <= 0.3 & fa.results >= -0.3] <- NA
+fa.results[fa.results < 0.3 & fa.results > -0.3] <- NA
 colnames(fa.results) <- c("Measure", 
                           "Interpersonal morality 1",
                           "Positive traits 1",
@@ -1145,6 +1154,7 @@ combine.fa.corr <- total.fa.corr[[1]][["r"]]
 combine.fa.corr[lower.tri(combine.fa.corr, diag=TRUE)] <- NA
 other.fa.corr <- total.fa.corr[[2]][["r"]]
 combine.fa.corr[lower.tri(combine.fa.corr, diag=FALSE)] <- other.fa.corr[lower.tri(other.fa.corr)]
+combine.fa.corr <- round(combine.fa.corr, 2)
 
 if (writecsvs == 1) {write.csv(x = combine.fa.corr, file = "output/Factor_correlations.csv")}
 
@@ -1242,7 +1252,7 @@ fa.corr.diff.bon.pall[fa.corr.diff.bon.pall >= 0.0001] <- NA
 
 ## Mediation analysis
 
-```{r eval=FALSE, echo=FALSE, message=FALSE}
+```{r echo=FALSE, message=FALSE}
 
 ## Mediation analysis
 
@@ -1607,7 +1617,7 @@ df.list <- lapply(df.list, function(df) {
 
 c4.mc.risk.list <- lapply(df.list, function(df) {
   c4.mc.risk <- lmer(Contct4M ~ sex + risk1 + Adjusted_age + (1 | Country) + (0 + risk1 | Country) + (0 + Adjusted_age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-  c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite")
+  c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(c4.mc.risk)
   df.err <- df.err$df_error[1]
   c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err)
@@ -1687,6 +1697,13 @@ if (writecsvs == 1) {write.csv(x = d.log.lad.results, file = "output/Charity_mod
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
 
+df.c.list <- list(df.c1,df.c2)
+
+df.c.list <- lapply(df.c.list, function(df) {
+  df[,c("donated_logit", "age", "Ladder")] <- scale(df[,c("donated_logit", "age", "Ladder")])
+  return(df)
+})
+
 # fit mixed model without subjective wealth and a model adding this in, compare and extract parameters from best model
 d.log.lad.list <- lapply(df.c.list, function(df) {
   df <- subset(df, !is.na(Ladder))
@@ -1694,18 +1711,18 @@ d.log.lad.list <- lapply(df.c.list, function(df) {
   d.log.lad <- lmer(donated_logit ~ sex + Ladder + age * charity + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
   compare <- anova(d.log,d.log.lad) # controlling for subjective wealth sig better
   if (compare$`Pr(>Chisq)`[[2]] < 0.05) {
-  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite")
+  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
   } else {
-  d.log.lad.coeff <- model_parameters(d.log, df_method = "satterthwaite")
+  d.log.lad.coeff <- model_parameters(d.log, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log)
   df.err <- df.err$df_error[1]
   }
   d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
-  return(d.log.lad.coeff)
+  return(compare)
 })
 
 ```
@@ -1738,9 +1755,9 @@ for (c in dates$date_count) {
     
     cdf[,c("age", "Contct4M", "generosity2_logit", "generosity3_logit", "risk1", "Ladder")] <- scale(cdf[,c("age", "Contct4M", "generosity2_logit", "generosity3_logit", "risk1", "Ladder")])
     
-    date.lad.d <- model_parameters(lm(Contct4M ~ sex + risk1 + age, data = cdf))
-    date.lad.n <- model_parameters(lm(generosity2_logit ~ sex + Ladder + age, data = cdf))
-    date.lad.i <- model_parameters(lm(generosity3_logit ~ sex + Ladder + age, data = cdf))
+    date.lad.d <- model_parameters(lm(Contct4M ~ sex + risk1 + age, data = cdf), standardize = "refit")
+    date.lad.n <- model_parameters(lm(generosity2_logit ~ sex + Ladder + age, data = cdf), standardize = "refit")
+    date.lad.i <- model_parameters(lm(generosity3_logit ~ sex + Ladder + age, data = cdf), standardize = "refit")
     date.results[date.results$date_count == c, 3:5] = c(tail(date.lad.d$Coefficient,1), tail(date.lad.n$Coefficient,1), tail(date.lad.i$Coefficient,1))
   }
   date.results[date.results$date_count == c, 6] = nrow(cdf)
@@ -1764,7 +1781,7 @@ plot.date.prosocial <- ggplot(date.results.long, aes(x = date_count, y = outcome
   geom_tile() +
   scale_x_continuous(name = NULL, breaks = date.breaks, labels = date.labs) + 
   scale_y_discrete(breaks = c("international", "national", "distancing"), labels = c("International\ngiving", "National\ngiving", "Distancing")) +
-  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-0.33, 0.33), na.value = "#ECECEC", name = expression(beta)) +
+  scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-0.34, 0.34), na.value = "#ECECEC", name = expression(beta)) +
   theme_classic() +
   theme(
         legend.title = element_text(size = axtitle, vjust = 0.75), 
