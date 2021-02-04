@@ -25,6 +25,7 @@ pacman::p_load(car,
                ggtext,
                GPArotation, 
                Hmisc,
+               irr,
                kableExtra,
                lemon,
                lme4, 
@@ -1941,33 +1942,43 @@ df.uk1 <- as_tibble(df.uk1)
 df.uk2 <- as_tibble(df.uk2)
 
 df.uk <- inner_join(df.uk1, df.uk2, by = "Prolific.ID", suffix = c("_part1", "_part2")) %>% 
-  dplyr::select(starts_with(c("age", "generosity_2", "generosity_3", "generosity_sum", "physical_contact_av", "collective_narcis_av", "national_identity_av", "political_ideology_1", "narcissism_av", "open_mindness_av", "trait_optimism_av", "social_belonging_av", "trait_self.control_av", "psych_wellbeing_av", "self.esteem", "morality_as_cooperat", "moral_identity_av", "moral_circle", "ladder", "risk_perception_av")))  %>% 
+  dplyr::select(starts_with(c(
+    "Prolific.ID", 
+    "age", "generosity_2", "generosity_3", "generosity_sum", "physical_contact_av", 
+    "collective_narcis_av", "national_identity_av", "political_ideology_1", "narcissism_av", "open_mindness_av", "trait_optimism_av", "social_belonging_av", "trait_self.control_av", "psych_wellbeing_av", "self.esteem", "morality_as_cooperat", "moral_identity_av", "moral_circle"
+    , "ladder", "risk_perception_av"
+  )))  %>% 
   dplyr::select(-contains("cooperat_av"))
 
-df.uk.long <- df.uk %>% pivot_longer(cols = everything(), names_to = c(".value", "part"), names_sep = "_part")
+df.uk.long <- df.uk %>% pivot_longer(cols = !matches("Prolific.ID"), names_to = c(".value", "part"), names_sep = "_part")
 df.uk.long$part <- factor(df.uk.long$part)
 
-uk.cors <- apply(df.uk.long[,2:length(df.uk.long)], 2, function(col) {
+columns <- colnames(df.uk.long)
+columns <- columns[3:length(columns)]
+
+uk.cors <- sapply(columns, function(col) {
   # hist(col)
-  p1s <- seq(1,length(col),2)
-  norm1 <- shapiro.test(col[p1s])
-  norm1.p <- norm1$p.value
-  p2s <- seq(2,length(col),2)
-  norm2 <- shapiro.test(col[p2s])
-  norm2.p <- norm2$p.value
-  colcor <- rcorr(col[p1s], col[p2s], type= "pearson")
+  nrows <- nrow(df.uk.long[,colnames(df.uk.long) == col])
+  p1s <- df.uk.long[df.uk.long$part == 1,colnames(df.uk.long) == col]
+  colnames(p1s) <- "part1"
+  p2s <- df.uk.long[df.uk.long$part == 2,colnames(df.uk.long) == col]
+  colnames(p2s) <- "part2"
+  colcor <- rcorr(p1s$part1, p2s$part2, type= "pearson")
   colr.p <- colcor$r[1,2]
-  colcor <- rcorr(col[p1s], col[p2s], type= "spearman")
+  colcor <- rcorr(p1s$part1, p2s$part2, type= "spearman")
   colr.s <- colcor$r[1,2]
-  colr <- c(colr.p, colr.s)})
+  ps <- bind_cols(p1s, p2s)
+  
+  if (grepl ('average', col) | grepl ('sum', col)) {
+    unit <- "average"
+  } else {unit <- "single"}
+  
+  col.icc <- icc(ps, model = "twoway", type = "agreement", unit = unit)
+  colr.i <- col.icc$value
+  colr <- c(colr.p, colr.s, colr.i)})
 
 uk.cors <- as_tibble(uk.cors, rownames = NA)
 
-uk.id.cors <- uk.cors %>% 
-  dplyr::select(starts_with(c("collective_narcis_av", "national_identity_av", "political_ideology_1", "narcissism_av", "open_mindness_av", "trait_optimism_av", "social_belonging_av", "trait_self.control_av", "psych_wellbeing_av", "self.esteem", "morality_as_cooperat", "moral_identity_av", "moral_circle")))  %>% 
-  dplyr::select(-contains("cooperat_av"))
-
-uk.id.cors <- uk.id.cors[2,]
 if (writecsvs == 1) {write.csv(x = uk.cors, file = "output/UK_test_retest_results.csv")}
 
 ```
