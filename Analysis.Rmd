@@ -185,8 +185,8 @@ neg.corr.col <-  "#00A7DD"
 
 # whether to write csv files of results & save plot files
 
-writecsvs <- 1
-saveplots <- 1
+writecsvs <- 0
+saveplots <- 0
 
 ```
 
