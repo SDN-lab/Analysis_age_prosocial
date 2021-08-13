@@ -6,7 +6,6 @@ output:
   html_document:
     keep_md: true
 fig_width: 8
-
 ---
 
 ## Set up and functions
@@ -27,6 +26,7 @@ pacman::p_load(car,
                Hmisc,
                irr,
                kableExtra,
+               lavaan,
                lemon,
                lme4, 
                lmerTest,
@@ -115,7 +115,7 @@ df <- df %>%
                               ordered = TRUE)) %>%
   mutate(AnalysisGroupF = factor(AnalysisGroup,
          levels = c(1,2),
-         labels = c("Subsample 1", "Subsample 2")))
+         labels = c("S1 (n = 23,288)", "S2 (n = 23,288)")))
 
 # keep a copy of the ages in years (age standardised below)
 df$age_raw <- df$age
@@ -166,13 +166,13 @@ axtitle <- 20
 age.vars <- c("age_raw",
               "Adjusted_age")
 
-age.labs <- c("Age",
-              "Age adjusted for life expectancy")
+age.labs <- c("Age (years)",
+              "Age (proportion of life expectancy)")
 
 age.names <- c("age", "age_adjusted")
 
-dona.lab <- "Giving (% donated)"
-dist.lab <- "Distancing"
+dona.lab <- "Amount donated (%)"
+dist.lab <- "Distancing (0-10)"
 
 char.labs <- c("National", "International")
 char.lab <- "Charity"
@@ -185,8 +185,8 @@ neg.corr.col <-  "#00A7DD"
 
 # whether to write csv files of results & save plot files
 
-writecsvs <- 0
-saveplots <- 0
+writecsvs <- 1
+saveplots <- 1
 
 ```
 
@@ -200,7 +200,7 @@ df2 <- subset(full, AnalysisGroup == 2)
 df.list <- list(df1,df2)
 
 # select columns want to get summary stats for
-df.totals <- lapply(df.list, function(df) {df %>% dplyr::select("age", "Adjusted_age", "Contct4M", "generosity2", "generosity3", "generosity_sum", "generosity_nat_bias", starts_with("mcoop"), "PoliticId", "moral_circle", "Ladder", "risk1", ends_with("_average"), ends_with("_sum"), "SelfEsteem", "x2018GNI", contains("death"), contains("cases"), "date_count")})
+df.totals <- lapply(df.list, function(df) {df %>% dplyr::select("age", "Contct4M", "generosity_sum")})
 
 # calculate means
 means <- lapply(df.totals, function(df) {
@@ -222,12 +222,6 @@ gender.means.boot <- lapply(df.list, function(df){df %>%
     dplyr::summarise(y.t = mean_cl_boot(generosity_sum)[[1]],
                      ymin.t = mean_cl_boot(generosity_sum)[[2]],
                      ymax.t = mean_cl_boot(generosity_sum)[[3]],
-                     # y.n = mean_cl_boot(generosity2)[[1]],
-                     # ymin.n = mean_cl_boot(generosity2)[[2]],
-                     # ymax.n = mean_cl_boot(generosity2)[[3]],
-                     # y.i = mean_cl_boot(generosity3)[[1]],
-                     # ymin.i = mean_cl_boot(generosity3)[[2]],
-                     # ymax.i = mean_cl_boot(generosity3)[[3]],
                      y.d = mean_cl_boot(Contct4M)[[1]],
                      ymin.d = mean_cl_boot(Contct4M)[[2]],
                      ymax.d = mean_cl_boot(Contct4M)[[3]],
@@ -259,7 +253,7 @@ charity.means.boot <- bind_rows(charity.means.boot[[1]], charity.means.boot[[2]]
 
 ## Mixed models
 
-```{r echo=FALSE, message=FALSE, results='asis'}
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 
 # always reset dataframes from full before the next analysis
 df1 <- subset(full, AnalysisGroup == 1)
@@ -278,7 +272,7 @@ c4.mc.risk.list <- lapply(df.list, function(df) {
   c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(c4.mc.risk)
   df.err <- df.err$df_error[1]
-  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err)
+  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err, ci = F)[["d"]]
   c4.mc.risk.coeff.k  <- kable(c4.mc.risk.coeff)  %>% kable_styling()
   print(c4.mc.risk.coeff.k)
   return(c4.mc.risk.coeff)
@@ -286,7 +280,7 @@ c4.mc.risk.list <- lapply(df.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 c4.mc.risk.results <- cbind(c4.mc.risk.list[[1]], c4.mc.risk.list[[2]])
-c4.mc.risk.results <- c4.mc.risk.results[,c(2:9, 11:18)]
+c4.mc.risk.results <- c4.mc.risk.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"] = round(c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"], 2)
 c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"])
 c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"])
@@ -308,7 +302,7 @@ t.log.lad.list <- lapply(df.list, function(df) {
     df.err <- model_parameters(t.log.lad)
     df.err <- df.err$df_error[1]
   }
-  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err)
+  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err, ci = F)[["d"]]
   t.log.lad.coeff.k  <- kable(t.log.lad.coeff)  %>% kable_styling()
   print(t.log.lad.coeff.k)
   return(t.log.lad.coeff)
@@ -316,7 +310,7 @@ t.log.lad.list <- lapply(df.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 t.log.lad.results <- cbind(t.log.lad.list[[1]], t.log.lad.list[[2]])
-t.log.lad.results <- t.log.lad.results[,c(2:9, 11:18)]
+t.log.lad.results <- t.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"] = round(t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"], 2)
 t.log.lad.results[,colnames(t.log.lad.results) == "p"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p"])
 t.log.lad.results[,colnames(t.log.lad.results) == "p.1"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p.1"])
@@ -336,7 +330,7 @@ d.log.lad.list <- lapply(df.c.list, function(df) {
   d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
-  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
   return(d.log.lad.coeff)
@@ -344,7 +338,7 @@ d.log.lad.list <- lapply(df.c.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 d.log.lad.results <- cbind(d.log.lad.list[[1]], d.log.lad.list[[2]])
-d.log.lad.results <- d.log.lad.results[,c(2:9, 11:18)]
+d.log.lad.results <- d.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"] = round(d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"], 2)
 d.log.lad.results[,colnames(d.log.lad.results) == "p"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p"])
 d.log.lad.results[,colnames(d.log.lad.results) == "p.1"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p.1"])
@@ -359,7 +353,7 @@ d.log.lad.n.list <- lapply(df.c.list, function(df) {
   d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
-  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
   return(d.log.lad.coeff)
@@ -367,7 +361,7 @@ d.log.lad.n.list <- lapply(df.c.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 d.log.lad.n.results <- cbind(d.log.lad.n.list[[1]], d.log.lad.n.list[[2]])
-d.log.lad.n.results <- d.log.lad.n.results[,c(2:9, 11:18)]
+d.log.lad.n.results <- d.log.lad.n.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 d.log.lad.n.results[,colnames(d.log.lad.n.results) != "p" & colnames(d.log.lad.n.results) != "p.1"] = round(d.log.lad.n.results[,colnames(d.log.lad.n.results) != "p" & colnames(d.log.lad.n.results) != "p.1"], 2)
 d.log.lad.n.results[,colnames(d.log.lad.n.results) == "p"] = pvalr(d.log.lad.n.results[,colnames(d.log.lad.n.results) == "p"])
 d.log.lad.n.results[,colnames(d.log.lad.n.results) == "p.1"] = pvalr(d.log.lad.n.results[,colnames(d.log.lad.n.results) == "p.1"])
@@ -382,7 +376,7 @@ d.log.lad.i.list <- lapply(df.c.list, function(df) {
   d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
-  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
   return(d.log.lad.coeff)
@@ -390,7 +384,7 @@ d.log.lad.i.list <- lapply(df.c.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 d.log.lad.i.results <- cbind(d.log.lad.i.list[[1]], d.log.lad.i.list[[2]])
-d.log.lad.i.results <- d.log.lad.i.results[,c(2:9, 11:18)]
+d.log.lad.i.results <- d.log.lad.i.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 d.log.lad.i.results[,colnames(d.log.lad.i.results) != "p" & colnames(d.log.lad.i.results) != "p.1"] = round(d.log.lad.i.results[,colnames(d.log.lad.i.results) != "p" & colnames(d.log.lad.i.results) != "p.1"], 2)
 d.log.lad.i.results[,colnames(d.log.lad.i.results) == "p"] = pvalr(d.log.lad.i.results[,colnames(d.log.lad.i.results) == "p"])
 d.log.lad.i.results[,colnames(d.log.lad.i.results) == "p.1"] = pvalr(d.log.lad.i.results[,colnames(d.log.lad.i.results) == "p.1"])
@@ -401,7 +395,7 @@ if (writecsvs == 1) {write.csv(x = d.log.lad.i.results, file = "output/Internati
 
 ## Plots of age (raw & adjusted) with distancing & giving
 
-```{r echo=FALSE, warning=FALSE, fig.align="center", fig.height=12}
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.align="center", fig.height=12}
 
 # loop make a set of plots with raw age and a set of plots with adjusted age
 
@@ -467,6 +461,8 @@ for (av in 1:length(age.vars)) {
   
   # print(plot.age.charity)
   
+  # create multi-panel Figure 1 & save
+  
   if (saveplots == 1) {filename <- paste0("plots/Correlations_",  age.names[av], ".tiff")
   tiff(filename, units="in", res = resolution, width = plotW * 2, height = plotH * 3)}
   
@@ -477,6 +473,19 @@ for (av in 1:length(age.vars)) {
   if (saveplots == 1) {dev.off()}
   
 }
+
+## Source data - Fig. 1
+
+fig1.a <- bind_cols(df1 %>% select(c("age_raw", "Contct4M")), df2 %>% select(c("age_raw", "Contct4M")))
+colnames(fig1.a) <- c("Age_S1", "Distancing_S1", "Age_S2", "Distancing_S2")
+fig1.b <- bind_cols(df1 %>% select(c("age_raw", "generosity_sum")), df2 %>% select(c("age_raw", "generosity_sum")))
+colnames(fig1.b) <- c("Age_S1", "Donations_S1", "Age_S2", "Donations_S2")
+fig1.c <- bind_cols(df.c1 %>% select(c("subjid", "age_raw", "donated", "charity")), df.c2 %>% select(c("subjid", "age_raw", "donated", "charity")))
+colnames(fig1.c) <- c("Participant_S1", "Age_S1", "Donations_S1", "Charity_S1", "Participant_S2", "Age_S2", "Donations_S2", "Charity_S2")
+
+fig1 <- list(fig1.a, fig1.b, fig1.c)
+names(fig1) <- c("Fig1a", "Fig1b", "Fig1c")
+if (writecsvs == 1) {writexl::write_xlsx(fig1, "source_data/Cutler_SourceData_Fig1.xlsx")}
 
 ```
 
@@ -530,6 +539,8 @@ df.obw.c$charity <- droplevels(df.obw.c$charity)
 
 df.obw.c$donated_logit <- car::logit(df.obw.c$donated, percents=max(df.obw$generosity_sum, na.rm = TRUE) > 1)
 
+# standardise continuous variables for models with income standardised for each country separately
+
 df.obw.c[,c("donated_logit", "age")] <- scale(df.obw.c[,c("donated_logit", "age")])
 df.obw.c$Income[df.obw.c$Country == "UK"] <- scale(df.obw.c$Income[df.obw.c$Country == "UK"])
 df.obw.c$Income[df.obw.c$Country == "NIGERIA"] <- scale(df.obw.c$Income[df.obw.c$Country == "NIGERIA"])
@@ -541,7 +552,7 @@ d.log.obw <- lmer(donated_logit ~ sex + Income + age * charity + (1 | Country) +
 d.log.obw.coeff <- model_parameters(d.log.obw, df_method = "satterthwaite", standardize = "refit")
 df.err <- model_parameters(d.log.obw)
 df.err <- df.err$df_error[1]
-d.log.obw.coeff$d <- t_to_d(d.log.obw.coeff$t, df.err)
+d.log.obw.coeff$d <- t_to_d(d.log.obw.coeff$t, df.err, ci = F)[["d"]]
 d.log.obw.coeff.k  <- kable(d.log.obw.coeff)  %>% kable_styling()
 print(d.log.obw.coeff.k)
 
@@ -558,7 +569,7 @@ plot.age.charity <- ggplot(df.obw.c, aes(x = age_raw, y = donated)) +
   geom_point(aes(color = charity), shape = 21, fill = NA, alpha = 0.05, size = 1, show.legend = FALSE) + 
   geom_smooth(aes(group = charity, color = charity, fill = charity, linetype = charity), method = "lm", formula = y ~ x, alpha = 0.3, size = 0.75, show.legend = FALSE) + 
   geom_smooth(aes(group = charity, color = charity, fill = charity, linetype = charity), method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
-  scale_x_continuous(name = "Age") +
+  scale_x_continuous(name = age.labs[1]) +
   scale_y_continuous(name = dona.lab) + 
   scale_fill_manual(values = dotcols2, labels = char.labs, name = char.lab) + 
   scale_color_manual(values = dotcols2, labels = char.labs, name = char.lab) + 
@@ -594,7 +605,7 @@ for (c in cntry.list$ISO3) {
   
   cdf <- subset(full, Country == c) # select rows from that country
   
-  # standardise variables
+  # standardise continuous variables for models
   cdf[,c("age", "Contct4M", "generosity2_logit", "generosity3_logit", "generosity_nat_bias", "Ladder", "risk1")] <- scale(cdf[,c("age", "Contct4M", "generosity2_logit", "generosity3_logit", "generosity_nat_bias", "Ladder", "risk1")])
   
   # run linear model for each outcome & extract parameters
@@ -611,13 +622,6 @@ for (c in cntry.list$ISO3) {
                                                             tail(cntry.lad.i$p,1), 
                                                             tail(cntry.lad.b$p,1))
     country.results$n[country.results$code == c] = nrow(cdf)
-    country.results$gni[country.results$code == c] = cdf$x2018GNI[1]
-    # SD = start date of testing - covid deaths / cases on this date to give a value in each country but in analysis the exact date of testing used
-    country.results$sd_total_deaths[country.results$code == c] = cdf$SDtotal_deaths[1]
-    country.results$sd_total_cases[country.results$code == c] = cdf$SDtotal_cases[1]
-    country.results$sd_deaths_slope[country.results$code == c] = cdf$SDrolling_deaths_slope[1]
-    country.results$sd_cases_slope[country.results$code == c] = cdf$SDrolling_cases_slope[1]
-    country.results$represent[country.results$code == c] = cdf$REPRESENT[1]
 }
 
 country.results.all <- country.results
@@ -656,7 +660,7 @@ continents <- left_join(continents, country.results, by = "code") %>%
 df.world <- left_join(world_map, continents, by = "region")
 df.europe <- subset(df.world, continent == "Europe" & region != "Russia")
 
-# create a map figure for each outcome (distancing, national giving, and international giving)
+# create a map figure for each outcome (distancing, national giving, and international giving) across the world and just europe
 
 world.distance <- ggplot(df.world, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = distancing), color = "white", size = .1) +
@@ -676,7 +680,7 @@ world.national <- ggplot(df.world, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = national), color = "white", size = .1) +
   scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.28, .28), na.value = "#ECECEC", guide = NULL) +
   theme_void() +
-  draw_plot_label("National giving", x = -180, y = -20, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
+  draw_plot_label("National donations", x = -180, y = -20, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
 
 europe.national <- ggplot(df.europe, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = national), color = "white", size = .1) +
@@ -690,7 +694,7 @@ world.inter <- ggplot(df.world, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = international), color = "white", size = .1) +
   scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-.28, .28), na.value = "#ECECEC", guide = NULL) +
   theme_void() +
-  draw_plot_label("International giving", x = -180, y = -35, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
+  draw_plot_label("International donations", x = -180, y = -35, hjust = 0, vjust = 0, angle = 90, size = axtitle, fontface = "plain")
 
 europe.inter <- ggplot(df.europe, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = international), color = "white", size = .1) +
@@ -700,6 +704,8 @@ europe.inter <- ggplot(df.europe, aes(long, lat, group = group)) +
   theme(legend.text = element_text(size = axtext),
         legend.title = element_text(size = axtitle))
 
+# create multi-panel Figure 2 & save
+
 if (saveplots == 1) {filename <- "plots/Maps.tiff"
 tiff(filename, units="in", res = resolution, width = plotW * 2.6, height = plotH * 3)}
 
@@ -708,6 +714,19 @@ plots.map <- plot_grid(world.distance, europe.distance, world.national, europe.n
 print(plots.map) 
 
 if (saveplots == 1) {dev.off()}
+
+## Source data - Fig. 2
+
+fig2.a <- df.world %>% select(c("region", "distancing")) %>% distinct()
+colnames(fig2.a) <- c("Country", "Distancing_beta")
+fig2.b <- df.world %>% select(c("region", "national")) %>% distinct()
+colnames(fig2.b) <- c("Country", "National_donations_beta")
+fig2.c <- df.world %>% select(c("region", "international")) %>% distinct()
+colnames(fig2.c) <- c("Country", "International_donations_beta")
+
+fig2 <- list(fig2.a, fig2.b, fig2.c)
+names(fig2) <- c("Fig2a", "Fig2b", "Fig2c")
+if (writecsvs == 1) {writexl::write_xlsx(fig2, "source_data/Cutler_SourceData_Fig2.xlsx")}
 
 ```
 
@@ -769,7 +788,7 @@ d.log.lad.list.slope.world.inter <- lapply(df.c.list, function(df) {
 
 ## Country-level variables in mixed models of donations & distancing - final models & formatting
 
-```{r echo=FALSE, results='asis'}
+```{r echo=FALSE, warning=FALSE, results='asis'}
 
 # mixed model predicting distancing with all country-level predictors
 
@@ -778,11 +797,12 @@ df2 <- subset(full, AnalysisGroup == 2)
 
 df.list <- list(df1,df2) 
 
+# transform death numbers and standardise all variables
 df.list <- lapply(df.list, function(df) {
   df$total_deaths <- log10(df$total_deaths + 1)
   df$world_total_deaths <- log10(df$world_total_deaths + 1)
   df[,c("Contct4M", "age", "risk1", "Ladder", "x2018GNI", "total_deaths", "rolling_deaths_slope",  "world_total_deaths", "world_rolling_deaths_slope")] <- scale(
-    df[,c("Contct4M", "age", "risk1",  "Ladder", "x2018GNI", "total_deaths", "rolling_deaths_slope", "world_total_deaths", "world_rolling_deaths_slope")])
+    df[,c("Contct4M", "age", "risk1", "Ladder", "x2018GNI", "total_deaths", "rolling_deaths_slope", "world_total_deaths", "world_rolling_deaths_slope")])
   df <- as_tibble(df)
   return(df)
 })
@@ -792,10 +812,11 @@ country.cor.list <- lapply(df.list, function(df) {
   cor(df %>% dplyr::select("risk1",  "Ladder", "x2018GNI", "total_deaths", "rolling_deaths_slope", "world_total_deaths", "world_rolling_deaths_slope"),
       use = "pairwise.complete.obs")})
 
-country.cor.max <- max(max(abs(country.cor.list[[1]][country.cor.list[[1]] != 1])), max(abs(country.cor.list[[2]][country.cor.list[[2]] != 1])))
+country.cor.max <- max(max(abs(country.cor.list[[1]][country.cor.list[[1]] != 1])), 
+                       max(abs(country.cor.list[[2]][country.cor.list[[2]] != 1])))
 
 c4.mc.risk.clf.list <- lapply(df.list, function(df) {
-  c4.mc.risk.clf <- lmer(Contct4M ~ sex + risk1 +
+  c4.mc.risk.clf <- lmer(Contct4M ~ sex + risk1 + 
                            age*world_total_deaths +
                            age*world_rolling_deaths_slope +
                            age*total_deaths +
@@ -807,7 +828,7 @@ c4.mc.risk.clf.list <- lapply(df.list, function(df) {
   c4.mc.risk.clf.coeff <- model_parameters(c4.mc.risk.clf, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(c4.mc.risk.clf)
   df.err <- df.err$df_error[1]
-  c4.mc.risk.clf.coeff$d <- t_to_d(c4.mc.risk.clf.coeff$t, df.err) 
+  c4.mc.risk.clf.coeff$d <- t_to_d(c4.mc.risk.clf.coeff$t, df.err, ci = F)[["d"]] 
   c4.mc.risk.clf.coeff.k  <- kable(c4.mc.risk.clf.coeff)  %>% kable_styling()
   print(c4.mc.risk.clf.coeff.k)
   return(c4.mc.risk.clf.coeff)
@@ -815,7 +836,7 @@ c4.mc.risk.clf.list <- lapply(df.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 c4.mc.risk.clf.results <- cbind(c4.mc.risk.clf.list[[1]], c4.mc.risk.clf.list[[2]])
-c4.mc.risk.clf.results <- c4.mc.risk.clf.results[,c(2:9, 11:18)]
+c4.mc.risk.clf.results <- c4.mc.risk.clf.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 c4.mc.risk.clf.results[,colnames(c4.mc.risk.clf.results) != "p" & colnames(c4.mc.risk.clf.results) != "p.1"] = round(c4.mc.risk.clf.results[,colnames(c4.mc.risk.clf.results) != "p" & colnames(c4.mc.risk.clf.results) != "p.1"], 2)
 c4.mc.risk.clf.results[,colnames(c4.mc.risk.clf.results) == "p"] = pvalr(c4.mc.risk.clf.results[,colnames(c4.mc.risk.clf.results) == "p"])
 c4.mc.risk.clf.results[,colnames(c4.mc.risk.clf.results) == "p.1"] = pvalr(c4.mc.risk.clf.results[,colnames(c4.mc.risk.clf.results) == "p.1"])
@@ -829,6 +850,7 @@ df.c2 <- subset(full.c, AnalysisGroup == 2)
 
 df.c.list <- list(df.c1,df.c2) 
 
+# transform death numbers and standardise all variables
 df.c.list <- lapply(df.c.list, function(df) {
   df$total_deaths <- log10(df$total_deaths + 1)
   df$world_total_deaths <- log10(df$world_total_deaths + 1)
@@ -851,7 +873,7 @@ d.log.lad.clf.list <- lapply(df.c.list, function(df) {
   d.log.lad.coeff <- model_parameters(d.log.lad.clf, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad.clf)
   df.err <- df.err$df_error[1]
-  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err) 
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]] 
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
   return(d.log.lad.coeff)
@@ -859,7 +881,7 @@ d.log.lad.clf.list <- lapply(df.c.list, function(df) {
 
 # combine results from both subsamples, select columns for output and format then write csv
 d.log.lad.clf.results <- cbind(d.log.lad.clf.list[[1]], d.log.lad.clf.list[[2]])
-d.log.lad.clf.results <- d.log.lad.clf.results[,c(2:9, 11:18)]
+d.log.lad.clf.results <- d.log.lad.clf.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 d.log.lad.clf.results[,colnames(d.log.lad.clf.results) != "p" & colnames(d.log.lad.clf.results) != "p.1"] = round(d.log.lad.clf.results[,colnames(d.log.lad.clf.results) != "p" & colnames(d.log.lad.clf.results) != "p.1"], 2)
 d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p"] = pvalr(d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p"])
 d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p.1"] = pvalr(d.log.lad.clf.results[,colnames(d.log.lad.clf.results) == "p.1"])
@@ -868,9 +890,11 @@ if (writecsvs == 1) {write.csv(x = d.log.lad.clf.results, file = "output/Charity
 
 ```
 
-## Quantifying changes in distancing & donations with betas and standard deviations
+## Quantifying changes with betas and standard deviations
 
 ```{r echo=FALSE}
+
+# extract standard deviations
 
 df1 <- subset(full, AnalysisGroup == 1)
 df2 <- subset(full, AnalysisGroup == 2)
@@ -890,7 +914,7 @@ df2.n.sd <- sd(df2$generosity2, na.rm = T)
 df1.i.sd <- sd(df1$generosity3, na.rm = T)
 df2.i.sd <- sd(df2$generosity3, na.rm = T)
 
-## In models without country-level controls
+# multiply standard deviations by model coefficients
 
 df1.dis.change <- round(df1.dis.sd * (c4.mc.risk.list[[1]]$Coefficient[c4.mc.risk.list[[1]]$Parameter == "age"]),2)
 df2.dis.change <- round(df2.dis.sd * (c4.mc.risk.list[[2]]$Coefficient[c4.mc.risk.list[[2]]$Parameter == "age"]),2)
@@ -904,14 +928,6 @@ df2.n.change <- round(df2.n.sd * (d.log.lad.n.list[[2]]$Coefficient[d.log.lad.n.
 df1.i.change <- round(df1.i.sd * (d.log.lad.i.list[[1]]$Coefficient[d.log.lad.i.list[[1]]$Parameter == "age"]),2)
 df2.i.change <- round(df2.i.sd * (d.log.lad.i.list[[2]]$Coefficient[d.log.lad.i.list[[2]]$Parameter == "age"]),2)
 
-## In models with country-level controls
-
-df1.dis.change.clf <- round(df1.dis.sd * (c4.mc.risk.clf.list[[1]]$Coefficient[c4.mc.risk.clf.list[[1]]$Parameter == "age"]),2)
-df2.dis.change.clf <- round(df2.dis.sd * (c4.mc.risk.clf.list[[2]]$Coefficient[c4.mc.risk.clf.list[[2]]$Parameter == "age"]),2)
-
-df1.gen.change.clf <- round(df1.gen.sd * (d.log.lad.clf.list[[1]]$Coefficient[d.log.lad.clf.list[[1]]$Parameter == "age"]),2)
-df2.gen.change.clf <- round(df2.gen.sd * (d.log.lad.clf.list[[2]]$Coefficient[d.log.lad.clf.list[[2]]$Parameter == "age"]),2)
-
 ```
 
 ## Factor analysis
@@ -923,7 +939,9 @@ df2 <- subset(full, AnalysisGroup == 2)
 
 df.list <- list(df1,df2)
 
-nfact <- 6 # determined with parallel analysis
+nfact <- 6 # determined with parallel analysis (commented out below)
+
+# run factor analysis on each subsample
 
 fa.list <- lapply(df.list, function(df) {
   
@@ -931,16 +949,13 @@ fa.list <- lapply(df.list, function(df) {
   df.fa <- df.totals %>% 
     dplyr::select(-contains(c("mcoop_average", "risk_average", "ctheory", "contact", "hygiene", "psupport")))  %>% 
     drop_na
-  # print(nrow(df.fa))
-  df.fa$moral_circle <- scales::rescale(df.fa$moral_circle, to = c(0,10))
+  # print(nrow(df.fa)) # sample size with data for factor analysis
+  df.fa$moral_circle <- scales::rescale(df.fa$moral_circle, to = c(0,10)) # rescale to match other measures
   
-  # print(fa.parallel(df.fa, fa="both", n.iter=100,
-  #               main="Scree plots with parallel analysis"))
+  # print(fa.parallel(df.fa, fa="both", n.iter=100, main="Scree plots with parallel analysis"))
   
   fa.oblimin <- fa(df.fa, nfactors=nfact, rotate="oblimin", scores="regression")
   # fa.diagram(fa.oblimin, simple=FALSE)
-  # print(fa.oblimin)
-  # 
   # print(fa.oblimin[["score.cor"]])
 
   return(fa.oblimin)
@@ -966,7 +981,7 @@ colnames(fa.results) <- c("Measure",
                           "General morality 2")
 if (writecsvs == 1) {write.csv(fa.results, file = paste0("output/Factor_analysis_results.csv"))}
 
-# create dataframes for each sample with all columns need for factor analysis mediation & plots
+# create dataframes for each sample with all columns need for factor analysis correlations & plots
 
 df1.fa <- df1 %>% dplyr::select("age", "Adjusted_age", "generosity1", "generosity2", "generosity3", "generosity_sum", "generosity_nat_bias", "Contct4M", starts_with("mcoop"), "PoliticId", "moral_circle", ends_with("_average"), ends_with("_sum"), "SelfEsteem", "Ladder", "total_deaths", "rolling_deaths_slope", "x2018GNI", "AnalysisGroup", "generosity2_logit", "generosity3_logit") %>%
   drop_na(-contains(c("Adjusted_age", "generosity", "mcoop_average", "risk_average", "ctheory", "contact", "hygiene", "psupport", "Contct4M", "Ladder", "total_deaths", "rolling_deaths_slope", "x2018GNI"))) %>% 
@@ -988,30 +1003,70 @@ df2.fa <- df2 %>% dplyr::select("age", "Adjusted_age", "generosity1", "generosit
              f6 = fa.list[[2]][["scores"]][,"MR6"],
              .after = "Contct4M")
 
-df.fa.combine.list <- list(df1.fa, df2.fa)
-
 ```
 
 ## Plots of factor scores
 
 ```{r echo=FALSE, warning=FALSE, fig.align="center", fig.width=12, fig.height=16}
 
-graph.vars= c("f1",
-              "f2",
-              "f3",
-              "f4",
-              "f5",
-              "f6"
+# colours and labels for plot
+
+fact.pal <- c("#CA4640", "#5DA2D2", "#9A66D3", "#EAA445", "#B5C347", "#F6CD53")
+
+fact.lines <- c(2,3,1,4,5,6)
+
+fact.lab <- "Factor score (0-10)"
+fact.leg <- "Trait factor:"
+
+graph.labs= c("<span style = 'font-size:20pt;color:#CA4640;'>**_Positive traits_**</span><br><br>
+              <span style = 'font-size:16pt;'>
+              Optimism<br><br>
+              Wellbeing<br><br>
+              Self-esteem<br><br>
+              Social belonging<br><br>
+              Self-control<br><br>
+              </span>",
+              "<span style = 'font-size:20pt;color:#5DA2D2;'>**_Negative traits_**</span><br><br>
+              <span style = 'font-size:16pt;'>
+              Open-mindedness (-)<br><br>
+              Narcissism<br><br>
+              </span>",
+              "<span style = 'font-size:20pt;color:#9A66D3;'>**_Ingroup preference_**</span><br><br>
+              <span style = 'font-size:16pt;'>
+              Collective narcissism<br><br>
+              National identity<br><br>
+              Political ideology<br><br>
+              </span>",
+              "<span style = 'font-size:20pt;color:#EAA445;'>**_Interpersonal morality_**</span><br><br>
+              <span style = 'font-size:16pt;'>
+              MaC - heroism<br><br>
+              MaC - reciprocity<br><br>
+              MaC - group<br><br>
+              MaC - family<br><br>
+              MaC - deference<br><br>
+              </span>",
+              "<span style = 'font-size:20pt;color:#B5C347;'>**_Material morality_**</span><br><br>
+              <span style = 'font-size:16pt;'>
+              MaC - property<br><br>
+              MaC - fairness<br><br>
+              </span>",
+              "<span style = 'font-size:20pt;color:#F6CD53;'>**_General morality_**</span><br><br>
+              <span style = 'font-size:16pt;'>
+              Moral identity<br><br>
+              Moral circle<br><br>
+              </span>"
 )
 
-graph.labs= c("Interpersonal\nmorality",
-              "Material\nmorality",
-              "Positive\ntraits",
-              "Negative\ntraits",
-              "Ingroup\npreference",
-              "General\nmorality"
+graph.vars= c("f4",
+              "f3",
+              "f5",
+              "f1",
+              "f2",
+              "f6"
 )
-  
+ 
+# create long version of data with a row for each factor
+
 df.f <- bind_rows(df1.fa, df2.fa) %>%
   tidyr:: pivot_longer(
     c("f1", "f2", "f3", "f4", "f5", "f6"),
@@ -1019,106 +1074,126 @@ df.f <- bind_rows(df1.fa, df2.fa) %>%
     names_prefix = "f"
   ) %>%
   mutate(factor = factor(factors,
-                         levels = c(1,2,4,3,5,6),
-                         labels = c("Interpersonal morality",
-                                    "Material morality",
-                                    "Positive traits",
+                         levels = c(4,3,5,1,2,6),
+                         labels = c("Positive traits",
                                     "Negative traits",
                                     "Ingroup preference",
+                                    "Interpersonal morality",
+                                    "Material morality",
                                     "General morality"))) %>%
   mutate(AnalysisGroupF = factor(AnalysisGroup,
          levels = c(1,2),
-         labels = c("Subsample 1", "Subsample 2"))) %>% 
+         labels = c("S1 (n = 22,253)", "S2 (n = 22,275)"))) %>% 
   dplyr::rename("score" = "value") %>% 
   add_column(scaled = NA)
 
-df.f$scaled[df.f$AnalysisGroupF == "Subsample 1"] <- scales::rescale(df.f$score[df.f$AnalysisGroupF == "Subsample 1"], to = c(0,10))
-df.f$scaled[df.f$AnalysisGroupF == "Subsample 2"] <- scales::rescale(df.f$score[df.f$AnalysisGroupF == "Subsample 2"], to = c(0,10))
-  
-pal <- c("#EAA445", "#9A66D3", "#CA4640", "#5DA2D2", "#B5C347", "#F6CD53")
+# rescale for plotting on same scale as measures
+
+df.f$scaled[df.f$AnalysisGroupF == "S1 (n = 22,253)"] <- scales::rescale(df.f$score[df.f$AnalysisGroupF == "S1 (n = 22,253)"], to = c(0,10))
+df.f$scaled[df.f$AnalysisGroupF == "S2 (n = 22,275)"] <- scales::rescale(df.f$score[df.f$AnalysisGroupF == "S2 (n = 22,275)"], to = c(0,10))
+
+# create plot for each measure
 
 plot.factor.age <- ggplot(df.f, aes(x = age, y = scaled)) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
-  scale_x_continuous(name = "Age") +
-  scale_y_continuous(name = "Factor score", labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
-  scale_fill_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_color_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_linetype_discrete(labels = graph.labs, name = "Factor:") +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
+  scale_x_continuous(name = age.labs[1]) +
+  scale_y_continuous(name = fact.lab, labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
+  scale_fill_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_color_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_linetype_manual(values = fact.lines, labels = graph.labs, name = fact.leg) +
   theme_classic() +
-  theme(legend.title = element_markdown(face = "bold", size = axtitle), legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
+  theme(legend.title = element_markdown(face = "bold", size = axtitle), 
+        legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
   theme(axis.text = element_markdown(size = axtext),
         axis.title.x = element_markdown(size = axtitle),
         axis.title.y = element_markdown(size = axtitle)) +
   guides(shape = guide_legend(override.aes = list(size = 2))) +
   facet_rep_wrap(~ AnalysisGroupF, scales = "fixed", repeat.tick.labels = 'all') + 
-  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), strip.text.x = element_markdown(size = axtitle, face = "bold"))
+  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), 
+        strip.text.x = element_markdown(size = axtitle, face = "bold"))
 
 # print(plot.factor.age)
 
 plot.factor.distance <- ggplot(df.f, aes(x = Contct4M, y = scaled)) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
-  scale_x_continuous(name = "Distancing", breaks = c(0, 2.5, 5, 7.5, 10), labels = c("0", "2.5", "5", "7.5", "10") ) +
-  scale_y_continuous(name = "Factor score", labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
-  scale_fill_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_color_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_linetype_discrete(labels = graph.labs, name = "Factor:") +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
+  scale_x_continuous(name = dist.lab, breaks = c(0, 2.5, 5, 7.5, 10), labels = c("0", "2.5", "5", "7.5", "10") ) +
+  scale_y_continuous(name = fact.lab, labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
+  scale_fill_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_color_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_linetype_manual(values = fact.lines, labels = graph.labs, name = fact.leg) +
   theme_classic() +
-  theme(legend.title = element_markdown(face = "bold", size = axtitle), legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
+  theme(legend.title = element_markdown(face = "bold", size = axtitle), 
+        legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
   theme(axis.text = element_markdown(size = axtext),
         axis.title.x = element_markdown(size = axtitle),
         axis.title.y = element_markdown(size = axtitle)) +
   guides(shape = guide_legend(override.aes = list(size = 2))) +
   facet_rep_wrap(~ AnalysisGroupF, scales = "fixed", repeat.tick.labels = 'all') + 
-  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), strip.text.x = element_markdown(size = axtitle, colour = "white"))
+  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), 
+        strip.text.x = element_markdown(size = axtitle, colour = "white"))
 
 # print(plot.factor.distance)
 
 plot.factor.national <- ggplot(df.f, aes(x = generosity2, y = scaled)) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
-  scale_x_continuous(name = "National giving (% donated)") +
-  scale_y_continuous(name = "Factor score", labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
-  scale_fill_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_color_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_linetype_discrete(labels = graph.labs, name = "Factor:") +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
+  scale_x_continuous(name = "National donations (%)") +
+  scale_y_continuous(name = fact.lab, labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
+  scale_fill_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_color_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_linetype_manual(values = fact.lines, labels = graph.labs, name = fact.leg) +
   theme_classic() +
-  theme(legend.title = element_markdown(face = "bold", size = axtitle), legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
+  theme(legend.title = element_markdown(face = "bold", size = axtitle), 
+        legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
   theme(axis.text = element_markdown(size = axtext),
         axis.title.x = element_markdown(size = axtitle),
         axis.title.y = element_markdown(size = axtitle)) +
   guides(shape = guide_legend(override.aes = list(size = 2))) +
   facet_rep_wrap(~ AnalysisGroupF, scales = "fixed", repeat.tick.labels = 'all') + 
-  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), strip.text.x = element_markdown(size = axtitle, colour = "white"))
+  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), 
+        strip.text.x = element_markdown(size = axtitle, colour = "white"))
 
 # print(plot.factor.national)
 
 plot.factor.international <- ggplot(df.f, aes(x = generosity3, y = scaled)) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
-  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
-  scale_x_continuous(name = "International giving (% donated)") +
-  scale_y_continuous(name = "Factor score", labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
-  scale_fill_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_color_manual(values = pal, labels = graph.labs, name = "Factor:") +
-  scale_linetype_discrete(labels = graph.labs, name = "Factor:") +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0.1, size = 0.75, show.legend = FALSE) +
+  geom_smooth(aes(group = factor, color = factor, fill = factor, linetype = factor), 
+              method = "lm", formula = y ~ x, alpha = 0, size = 0.75) +
+  scale_x_continuous(name = "International donations (%)") +
+  scale_y_continuous(name = fact.lab, labels = scales::number_format(accuracy = 0.01), n.breaks = 6) +
+  scale_fill_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_color_manual(values = fact.pal, labels = graph.labs, name = fact.leg) +
+  scale_linetype_manual(values = fact.lines, labels = graph.labs, name = fact.leg) +
   theme_classic() +
-  theme(legend.title = element_markdown(face = "bold", size = axtitle), legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
+  theme(legend.title = element_markdown(face = "bold", size = axtitle), 
+        legend.text = element_text(size = axtext-4), legend.key.size = unit(3,"line")) +
   theme(axis.text = element_markdown(size = axtext),
         axis.title.x = element_markdown(size = axtitle),
         axis.title.y = element_markdown(size = axtitle)) +
   guides(shape = guide_legend(override.aes = list(size = 2))) +
   facet_rep_wrap(~ AnalysisGroupF, scales = "fixed", repeat.tick.labels = 'all') + 
-  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), strip.text.x = element_markdown(size = axtitle, colour = "white"))
+  theme(strip.background = element_blank(), panel.spacing = unit(2, "lines"), 
+        strip.text.x = element_markdown(size = axtitle, colour = "white"))
 
 # print(plot.factor.international)
 
+# create multi-panel Figure 3 & save
+
 filename <- paste0("plots/Correlations_factors.tiff")
-if (saveplots == 1) {tiff(filename, units="in", res = resolution, width = plotW * 3, height = plotW * 4)}
+if (saveplots == 1) {tiff(filename, units="in", res = resolution, width = plotW * 3.2, height = plotW * 4)}
 
 legend <- get_legend(plot.factor.age + 
                        theme(legend.title = element_markdown(face = "bold", size = axtitle + 2), 
-                             legend.text = element_text(size = axtitle), 
+                             legend.text = element_markdown(), 
                              legend.key.width = unit(5,"line"), 
                              legend.key.height = unit(5,"line")) + 
                        guides(linetype = guide_legend(override.aes = list(size = 2))))
@@ -1127,12 +1202,52 @@ plots.factor <- plot_grid(plot.factor.age + theme(legend.position = "none"),
                           plot.factor.distance + theme(legend.position = "none"), 
                           plot.factor.national + theme(legend.position = "none"), 
                           plot.factor.international + theme(legend.position = "none"), 
-                          align = "v", axis = "tb", nrow = 4, 
+                          align = "vh", axis = "tb", nrow = 4, 
                           labels = "auto", label_size = axtitle)
 
 plot_grid(plots.factor, legend, ncol = 2, rel_heights = c(1,5), rel_widths = c(4,2))
 
 if (saveplots == 1) {dev.off()}
+
+## Source data - Fig. 3
+
+factorlabels <- c("Positive_traits",
+                  "Negative_traits",
+                  "Ingroup_preference",
+                  "Interpersonal_morality",
+                  "Material_morality",
+                  "General_morality")
+fig3.a1 <- df1.fa %>% select(c("age", "f4","f3","f5","f1","f2","f6")) 
+fig3.a1[,c(2:7)] <- lapply(fig3.a1[,c(2:7)], scales::rescale, to = c(1,10))
+fig3.a2 <- df2.fa %>% select(c("age", "f4","f3","f5","f1","f2","f6"))
+fig3.a2[,c(2:7)] <- lapply(fig3.a2[,c(2:7)], scales::rescale, to = c(1,10))
+colnames(fig3.a1) <- c("Age", factorlabels)
+colnames(fig3.a2) <- c("Age", factorlabels)
+
+fig3.b1 <- df1.fa %>% select(c("Contct4M", "f4","f3","f5","f1","f2","f6"))
+fig3.b1[,c(2:7)] <- lapply(fig3.b1[,c(2:7)], scales::rescale, to = c(1,10))
+fig3.b2 <- df2.fa %>% select(c("Contct4M", "f4","f3","f5","f1","f2","f6"))
+fig3.b2[,c(2:7)] <- lapply(fig3.b2[,c(2:7)], scales::rescale, to = c(1,10))
+colnames(fig3.b1) <- c("Distancing", factorlabels)
+colnames(fig3.b2) <- c("Distancing", factorlabels)
+
+fig3.c1 <- df1.fa %>% select(c("generosity2", "f4","f3","f5","f1","f2","f6"))
+fig3.c1[,c(2:7)] <- lapply(fig3.c1[,c(2:7)], scales::rescale, to = c(1,10))
+fig3.c2 <- df2.fa %>% select(c("generosity2", "f4","f3","f5","f1","f2","f6"))
+fig3.c2[,c(2:7)] <- lapply(fig3.c2[,c(2:7)], scales::rescale, to = c(1,10))
+colnames(fig3.c1) <- c("National_donations", factorlabels)
+colnames(fig3.c2) <- c("National_donations", factorlabels)
+
+fig3.d1 <- df1.fa %>% select(c("generosity3", "f4","f3","f5","f1","f2","f6"))
+fig3.d1[,c(2:7)] <- lapply(fig3.d1[,c(2:7)], scales::rescale, to = c(1,10))
+fig3.d2 <- df2.fa %>% select(c("generosity3", "f4","f3","f5","f1","f2","f6"))
+fig3.d2[,c(2:7)] <- lapply(fig3.d2[,c(2:7)], scales::rescale, to = c(1,10))
+colnames(fig3.d1) <- c("International_donations", factorlabels)
+colnames(fig3.d2) <- c("International_donations", factorlabels)
+
+fig3 <- list(fig3.a1, fig3.a2, fig3.b1, fig3.b2, fig3.c1, fig3.c2, fig3.d1, fig3.d2)
+names(fig3) <- c("Fig3a_S1", "Fig3a_S2", "Fig3b_S1", "Fig3b_S2", "Fig3c_S1", "Fig3c_S2", "Fig3d_S1", "Fig3d_S2")
+if (writecsvs == 1) {writexl::write_xlsx(fig3, "source_data/Cutler_SourceData_Fig3.xlsx")}
 
 ```
 
@@ -1140,9 +1255,11 @@ if (saveplots == 1) {dev.off()}
 
 ```{r echo=FALSE, message=FALSE}
 
-# calculate correlations between factor scores, age and the prosocial measures
+# create list of factor analysis output to apply over
 
 df.fa.list <- list(df1.fa, df2.fa)
+
+# calculate correlations between factor scores, age and the prosocial measures
 
 total.fa.corr <- lapply(df.fa.list, function(df){
   df <- df %>% select("age":"f6")
@@ -1251,261 +1368,212 @@ fa.corr.diff.bon.pall[fa.corr.diff.bon.pall >= 0.0001] <- NA
 
 ```
 
-## Mediation analysis
+## Structural equation models
 
-```{r echo=FALSE, message=FALSE}
+```{r echo=FALSE}
 
-## Mediation analysis
+set.seed(1234)
 
-# Following steps from https://towardsdatascience.com/doing-and-reporting-your-first-mediation-analysis-in-r-2fe423b92171
+# create dataframes for each sample with all columns need for SEMs
 
-distance.med.both <- NULL
-nat.give.med.both <- NULL
-inter.give.med.both <- NULL
+df1.fa <- df1 %>% dplyr::select("age", "Adjusted_age", "generosity1", "generosity2", "generosity3", "generosity_sum", "generosity_nat_bias", "Contct4M", starts_with("mcoop"), "PoliticId", "moral_circle", ends_with("_average"), ends_with("_sum"), "SelfEsteem", "Ladder", "total_deaths", "rolling_deaths_slope", "x2018GNI", "AnalysisGroup", "generosity2_logit", "generosity3_logit", "risk1", "Ladder") %>%
+  drop_na(-contains(c("Adjusted_age", "generosity", "mcoop_average", "risk_average", "ctheory", "contact", "hygiene", "psupport", "Contct4M", "Ladder", "total_deaths", "rolling_deaths_slope", "x2018GNI", "risk1", "Ladder"))) %>% 
+  add_column(intmor = fa.list[[1]][["scores"]][,"MR1"],
+             matmor = fa.list[[1]][["scores"]][,"MR2"],
+             negtrt = (fa.list[[1]][["scores"]][,"MR3"] * -1), # flip sign of scores on this factor           
+             postrt = fa.list[[1]][["scores"]][,"MR4"], 
+             ingpre = fa.list[[1]][["scores"]][,"MR5"], 
+             genmor = fa.list[[1]][["scores"]][,"MR6"], 
+             .after = "Contct4M") %>%
+  drop_na(c("risk1", "Ladder"))
 
-distance.regress.both <- NULL
-nat.give.regress.both <- NULL
-inter.give.regress.both <- NULL
+df2.fa <- df2 %>% dplyr::select("age", "Adjusted_age", "generosity1", "generosity2", "generosity3", "generosity_sum", "generosity_nat_bias", "Contct4M", starts_with("mcoop"), "PoliticId", "moral_circle", ends_with("_average"), ends_with("_sum"), "SelfEsteem", "Ladder", "total_deaths", "rolling_deaths_slope", "x2018GNI", "AnalysisGroup", "generosity2_logit", "generosity3_logit", "risk1", "Ladder") %>%
+  drop_na(-contains(c("Adjusted_age", "generosity", "mcoop_average", "risk_average", "ctheory", "contact", "hygiene", "psupport", "Contct4M", "Ladder", "total_deaths", "rolling_deaths_slope", "x2018GNI", "risk1", "Ladder"))) %>% 
+  add_column(intmor = fa.list[[2]][["scores"]][,"MR1"],
+             matmor = fa.list[[2]][["scores"]][,"MR2"],
+             negtrt = (fa.list[[2]][["scores"]][,"MR3"] * -1), # flip sign of scores on this factor
+             postrt = fa.list[[2]][["scores"]][,"MR4"],
+             ingpre = fa.list[[2]][["scores"]][,"MR5"],
+             genmor = fa.list[[2]][["scores"]][,"MR6"],
+             .after = "Contct4M") %>%
+  drop_na(c("risk1", "Ladder"))
+
+# create list of dataframes to apply over
 
 df.fa.list <- list(df1.fa, df2.fa)
 
+# standardise continuous variables for models
 df.fa.list <- lapply(df.fa.list, function(df) {
-  df[,c("age", "generosity2_logit", "generosity3_logit", "Contct4M", "f1", "f2", "f3", "f4", "f5", "f6")] <- scale(df[,c("age", "generosity2_logit", "generosity3_logit", "Contct4M", "f1", "f2", "f3", "f4", "f5", "f6")])
+  df[,c("age", "generosity2_logit", "generosity3_logit", "Contct4M", "intmor", "matmor", "negtrt", "postrt", "ingpre", "genmor", "risk1", "Ladder")] <- scale(df[,c("age", "generosity2_logit", "generosity3_logit", "Contct4M", "intmor", "matmor", "negtrt", "postrt", "ingpre", "genmor", "risk1", "Ladder")])
   return(df)
 })
 
-for (g in 1:2) {
-  
-df <- df.fa.list[[g]]
-  pos.mediators <- c(
-    "f1",
-    "f2",
-    "f3",
-    "f4",
-    "f5",
-    "f6")
-  
-  ## first check that the mediators are predicted by age - required for mediation
-  
-  for (med in pos.mediators) {
-    
-    df.m <- df %>% dplyr::select("age", all_of(med))  %>% drop_na
-    
-    names(df.m)[names(df.m) == med] <- "mediator"
-    
-    fit.mediator=lm(mediator ~ age, df.m)
-    #print(summary(fit.mediator))
-    
-  }
-  
-  ## mediators of age -> distancing
-  
-  fit.totaleffect <- lm(Contct4M ~ age, df)
-  m.totaleffect <- model_parameters(fit.totaleffect, standardize = "refit")
-  #summary(fit.totaleffect)
-  
-  distance.med.results <- data.frame(pos.mediators, matrix(data = NA, nrow = length(pos.mediators), ncol = 4))
-  colnames(distance.med.results) <- c(paste0("Measure_",g), paste0("ACME_",g), paste0("ADE_",g), paste0("Total_effect_",g), paste0("Prop_mediated_",g))
-  distance.med.results.p <- distance.med.results
-  colnames(distance.med.results.p) <- c(paste0("Measure_p_",g), paste0("ACME_p_",g), paste0("ADE_p_",g), paste0("Total_effect_p_",g), paste0("Prop_mediated_p_",g))
-  distance.med.regress <- data.frame(pos.mediators, matrix(data = NA, nrow = length(pos.mediators), ncol = 3))
-  colnames(distance.med.regress) <- c(paste0("Measure_",g), paste0("Total_effect_",g), paste0("IV_to_med_",g), paste0("Med_to_DV_",g))
-  distance.med.regress.p <- distance.med.regress
-  colnames(distance.med.regress.p) <- c(paste0("Measure_p_",g), paste0("Total_effect_p_",g), paste0("IV_to_med_p_",g), paste0("Med_to_DV_p_",g))
-  
-  for (med in pos.mediators) {
-    
-    df.m <- df %>% dplyr::select("age", "Contct4M", all_of(med))  %>% drop_na
-    
-    names(df.m)[names(df.m) == med] <- "mediator"
-    
-    fit.mediator=lm(mediator ~ age, df.m)
-    m.mediator <- model_parameters(fit.mediator, standardize = "refit")
-    #summary(fit.mediator)
-    
-    fit.dv=lm(Contct4M ~ age + mediator, df.m)
-    m.dv <- model_parameters(fit.dv, standardize = "refit")
-    #summary(fit.dv)
-    
-    # d is ACME
-    # z is ADE
-    # tau is total effect
-    # n is prop. mediated
-    
-    results = mediation::mediate(fit.mediator, fit.dv, treat="age", mediator="mediator", boot = T)
-    #print(summary(results))
-    
-    distance.med.results[distance.med.results[,1]==med,2:5] <- c(results[["d.avg"]], results[["z.avg"]], results[["tau.coef"]], results[["n.avg"]])
-    distance.med.results.p[distance.med.results.p[,1]==med,2:5] <- c(results[["d.avg.p"]], results[["z.avg.p"]], results[["tau.p"]], results[["n.avg.p"]])
-    
-    distance.med.regress[distance.med.regress[,1]==med,2:4] <- c(m.totaleffect$Coefficient[2],
-                                                               m.mediator$Coefficient[2],
-                                                               m.dv$Coefficient[3])
-    
-    distance.med.regress.p[distance.med.regress.p[,1]==med,2:4] <- c(m.totaleffect$p[2],
-                                                                   m.mediator$p[2],
-                                                                   m.dv$p[3])
-    
-  }
-  
-  distance.med.comb <- bind_cols(distance.med.results,distance.med.results.p)
-  distance.med.both <- bind_cols(distance.med.both, distance.med.comb)
-  distance.regress.comb <- bind_cols(distance.med.regress, distance.med.regress.p)
-  distance.regress.both <- bind_cols(distance.regress.both, distance.regress.comb)  
-  # filename <- paste0("output/Distancing_mediation_group_",g,".csv")
-  # if (writecsvs == 1) {write.csv(x = distance.med.comb, file = filename)}
-  
-  ## mediators of age -> national giving
-  
-  fit.totaleffect <- lm(generosity2_logit ~ age, df)
-  m.totaleffect <- model_parameters(fit.totaleffect, standardize = "refit")
-  #summary(fit.totaleffect)
-  
-  nat.give.med.results <- data.frame(pos.mediators, matrix(data = NA, nrow = length(pos.mediators), ncol = 4))
-  colnames(nat.give.med.results) <- c(paste0("Measure_",g), paste0("ACME_",g), paste0("ADE_",g), paste0("Total_effect_",g), paste0("Prop_mediated_",g))
-  nat.give.med.results.p <- nat.give.med.results
-  colnames(nat.give.med.results.p) <- c(paste0("Measure_p_",g), paste0("ACME_p_",g), paste0("ADE_p_",g), paste0("Total_effect_p_",g), paste0("Prop_mediated_p_",g))
-  nat.give.med.regress <- data.frame(pos.mediators, matrix(data = NA, nrow = length(pos.mediators), ncol = 3))
-  colnames(nat.give.med.regress) <- c(paste0("Measure_",g), paste0("Total_effect_",g), paste0("IV_to_med_",g), paste0("Med_to_DV_",g))
-  nat.give.med.regress.p <- nat.give.med.regress
-  colnames(nat.give.med.regress.p) <- c(paste0("Measure_p_",g), paste0("Total_effect_p_",g), paste0("IV_to_med_p_",g), paste0("Med_to_DV_p_",g))
-  
-  for (med in pos.mediators) {
-    
-    df.m <- df %>% dplyr::select("age", "generosity2_logit", all_of(med))  %>% drop_na
-    
-    names(df.m)[names(df.m) == med] <- "mediator"
-    
-    fit.mediator=lm(mediator ~ age, df.m)
-    m.mediator <- model_parameters(fit.mediator, standardize = "refit")
-    #print(summary(fit.mediator))
-    
-    fit.dv=lm(generosity2_logit ~ age + mediator, df.m)
-    m.dv <- model_parameters(fit.dv, standardize = "refit")
-    #print(summary(fit.dv))
-    
-    results = mediation::mediate(fit.mediator, fit.dv, treat="age", mediator="mediator", boot = T)
-    #print(summary(results))
-    
-    nat.give.med.results[nat.give.med.results[,1]==med,2:5] <- c(results[["d.avg"]], results[["z.avg"]], results[["tau.coef"]], results[["n.avg"]])
-    nat.give.med.results.p[nat.give.med.results.p[,1]==med,2:5] <- c(results[["d.avg.p"]], results[["z.avg.p"]], results[["tau.p"]], results[["n.avg.p"]])
-    
-    nat.give.med.regress[nat.give.med.regress[,1]==med,2:4] <- c(m.totaleffect$Coefficient[2],
-                                                                 m.mediator$Coefficient[2],
-                                                                 m.dv$Coefficient[3])
-    
-    nat.give.med.regress.p[nat.give.med.regress.p[,1]==med,2:4] <- c(m.totaleffect$p[2],
-                                                                     m.mediator$p[2],
-                                                                     m.dv$p[3])
-    
-  }
-  
-  nat.give.med.comb <- bind_cols(nat.give.med.results,nat.give.med.results.p)
-  nat.give.med.both <- bind_cols(nat.give.med.both, nat.give.med.comb)
-  nat.give.regress.comb <- bind_cols(nat.give.med.regress, nat.give.med.regress.p)
-  nat.give.regress.both <- bind_cols(nat.give.regress.both, nat.give.regress.comb)
-  # filename <- paste0("output/National_giving_mediation_group_",g,".csv")
-  # if (writecsvs == 1) {write.csv(x = nat.give.med.comb, file = filename)}
-  
-  ## mediators of age -> international giving
-  
-  fit.totaleffect <- lm(generosity3_logit ~ age, df)
-  m.totaleffect <- model_parameters(fit.totaleffect, standardize = "refit")
-  #summary(fit.totaleffect)
-  
-  inter.give.med.results <- data.frame(pos.mediators, matrix(data = NA, nrow = length(pos.mediators), ncol = 4))
-  colnames(inter.give.med.results) <- c(paste0("Measure_",g), paste0("ACME_",g), paste0("ADE_",g), paste0("Total_effect_",g), paste0("Prop_mediated_",g))
-  inter.give.med.results.p <- inter.give.med.results
-  colnames(inter.give.med.results.p) <- c(paste0("Measure_p_",g), paste0("ACME_p_",g), paste0("ADE_p_",g), paste0("Total_effect_p_",g), paste0("Prop_mediated_p_",g))
-  inter.give.med.regress <- data.frame(pos.mediators, matrix(data = NA, nrow = length(pos.mediators), ncol = 3))
-  colnames(inter.give.med.regress) <- c(paste0("Measure_",g), paste0("Total_effect_",g), paste0("IV_to_med_",g), paste0("Med_to_DV_",g))
-  inter.give.med.regress.p <- inter.give.med.regress
-  colnames(inter.give.med.regress.p) <- c(paste0("Measure_p_",g), paste0("Total_effect_p_",g), paste0("IV_to_med_p_",g), paste0("Med_to_DV_p_",g))
-  
-  for (med in pos.mediators) {
-    
-    df.m <- df %>% dplyr::select("age", "generosity3_logit", all_of(med))  %>% drop_na
-    
-    names(df.m)[names(df.m) == med] <- "mediator"
-    
-    fit.mediator=lm(mediator ~ age, df.m)
-    m.mediator <- model_parameters(fit.mediator, standardize = "refit")
-    #summary(fit.mediator)
-    
-    fit.dv=lm(generosity3_logit ~ age + mediator, df.m)
-    m.dv <- model_parameters(fit.dv, standardize = "refit")
-    #summary(fit.dv)
-    
-    results = mediation::mediate(fit.mediator, fit.dv, treat="age", mediator="mediator", boot = T)
-    #print(summary(results))
-    
-    inter.give.med.results[inter.give.med.results[,1]==med,2:5] <- c(results[["d.avg"]], results[["z.avg"]], results[["tau.coef"]], results[["n.avg"]])
-    inter.give.med.results.p[inter.give.med.results.p[,1]==med,2:5] <- c(results[["d.avg.p"]], results[["z.avg.p"]], results[["tau.p"]], results[["n.avg.p"]])
-    
-    inter.give.med.regress[inter.give.med.regress[,1]==med,2:4] <- c(m.totaleffect$Coefficient[2],
-                                                                     m.mediator$Coefficient[2],
-                                                                     m.dv$Coefficient[3])
-    
-    inter.give.med.regress.p[inter.give.med.regress.p[,1]==med,2:4] <- c(m.totaleffect$p[2],
-                                                                         m.mediator$p[2],
-                                                                         m.dv$p[3])
-    
-  }
-  
-  inter.give.med.comb <- bind_cols(inter.give.med.results,inter.give.med.results.p)
-  inter.give.med.both <- bind_cols(inter.give.med.both, inter.give.med.comb)
-  inter.give.regress.comb <- bind_cols(inter.give.med.regress, inter.give.med.regress.p)
-  inter.give.regress.both <- bind_cols(inter.give.regress.both, inter.give.regress.comb)
-  # filename <- paste0("output/International_giving_mediation_group_",g,".csv")
-  # if (writecsvs == 1) {write.csv(x = inter.give.med.comb, file = filename)}
-  
-}
+# run structural equation models on each subsample separately
 
-# write csv of results for models used in mediations - each path & significance values
+sem.results.list <- lapply(df.fa.list, function(df) {
+  
+  # specify model of distancing with age, the 6 factors and perceived risk
+  model.dist <- '
+  Contct4M ~ b1*postrt + b2*negtrt + b3*ingpre + b4*intmor + b5*matmor + b6*genmor + c*age + d*risk1
+  postrt ~ a1*age
+  negtrt ~ a2*age
+  ingpre ~ a3*age
+  intmor ~ a4*age
+  matmor ~ a5*age
+  genmor ~ a6*age
+  indirect1 := a1*b1
+  indirect2 := a2*b2
+  indirect3 := a3*b3
+  indirect4 := a4*b4
+  indirect5 := a5*b5
+  indirect6 := a6*b6
+  total := c + (a1*b1) + (a2*b2) + (a3*b3) + (a4*b4) + (a5*b5) + (a6*b6)
+  postrt~~negtrt
+  postrt~~ingpre
+  postrt~~intmor
+  postrt~~matmor
+  postrt~~genmor
+  negtrt~~ingpre
+  negtrt~~intmor
+  negtrt~~matmor
+  negtrt~~genmor
+  ingpre~~intmor
+  ingpre~~matmor
+  ingpre~~genmor
+  intmor~~matmor
+  intmor~~genmor
+  matmor~~genmor'
+  # run model
+  sem.dist <- sem(model.dist, data = df)
+  # extract parameters
+  # summary(sem.dist, standardized = TRUE)
+  sem.dist.results <- parameterEstimates(sem.dist) %>% 
+    select(c(lhs:est, pvalue)) %>% 
+    filter(op == "~" | op == ":=") %>% 
+    add_column(.before = "lhs", "measure" = "Contct4M")
+  
+  # specify model of national giving with age, the 6 factors and subjective wealth
+  model.nat <- '
+  generosity2_logit ~ b1*postrt + b2*negtrt + b3*ingpre + b4*intmor + b5*matmor + b6*genmor + c*age + d*Ladder
+  postrt ~ a1*age
+  negtrt ~ a2*age
+  ingpre ~ a3*age
+  intmor ~ a4*age
+  matmor ~ a5*age
+  genmor ~ a6*age
+  indirect1 := a1*b1
+  indirect2 := a2*b2
+  indirect3 := a3*b3
+  indirect4 := a4*b4
+  indirect5 := a5*b5
+  indirect6 := a6*b6
+  total := c + (a1*b1) + (a2*b2) + (a3*b3) + (a4*b4) + (a5*b5) + (a6*b6)
+  postrt~~negtrt
+  postrt~~ingpre
+  postrt~~intmor
+  postrt~~matmor
+  postrt~~genmor
+  negtrt~~ingpre
+  negtrt~~intmor
+  negtrt~~matmor
+  negtrt~~genmor
+  ingpre~~intmor
+  ingpre~~matmor
+  ingpre~~genmor
+  intmor~~matmor
+  intmor~~genmor
+  matmor~~genmor'
+  # run model
+  sem.nat <- sem(model.nat, data = df)
+  # extract parameters
+  # summary(sem.nat)
+  sem.nat.results <- parameterEstimates(sem.nat) %>% 
+    select(c(lhs:est, pvalue)) %>% 
+    filter(op == "~" | op == ":=") %>% 
+    add_column(.before = "lhs", "measure" = "generosity2")
+  
+  # specify model of national giving with age, the 6 factors and subjective wealth
+  model.inter <- '
+  generosity3_logit ~ b1*postrt + b2*negtrt + b3*ingpre + b4*intmor + b5*matmor + b6*genmor + c*age + d*Ladder
+  postrt ~ a1*age
+  negtrt ~ a2*age
+  ingpre ~ a3*age
+  intmor ~ a4*age
+  matmor ~ a5*age
+  genmor ~ a6*age
+  indirect1 := a1*b1
+  indirect2 := a2*b2
+  indirect3 := a3*b3
+  indirect4 := a4*b4
+  indirect5 := a5*b5
+  indirect6 := a6*b6
+  total := c + (a1*b1) + (a2*b2) + (a3*b3) + (a4*b4) + (a5*b5) + (a6*b6)
+  postrt~~negtrt
+  postrt~~ingpre
+  postrt~~intmor
+  postrt~~matmor
+  postrt~~genmor
+  negtrt~~ingpre
+  negtrt~~intmor
+  negtrt~~matmor
+  negtrt~~genmor
+  ingpre~~intmor
+  ingpre~~matmor
+  ingpre~~genmor
+  intmor~~matmor
+  intmor~~genmor
+  matmor~~genmor'
+  # run model
+  sem.inter <- sem(model.inter, data = df)
+  # extract parameters
+  # summary(sem.inter)
+  sem.inter.results <- parameterEstimates(sem.inter) %>% 
+    select(c(lhs:est, pvalue)) %>% 
+    filter(op == "~" | op == ":=") %>% 
+    add_column(.before = "lhs", "measure" = "generosity3")
 
-if (writecsvs == 1) {write.csv(x = distance.regress.both, file = "output/Distancing_mediation_lms.csv")}
-if (writecsvs == 1) {write.csv(x = nat.give.regress.both, file = "output/National_giving_mediation_lms.csv")}
-if (writecsvs == 1) {write.csv(x = inter.give.regress.both, file = "output/International_giving_mediation_lms.csv")}
+  # combine distancing, national giving and international giving results  
+  sem.results <-  bind_rows(sem.dist.results, sem.nat.results, sem.inter.results) %>% 
+  add_column(pcor = NA)
+  
+})
 
-# write csv of results for mediations - overall proportion mediated, significance values etc
+# change names for subsample 2 so unique when combine
+sem.results.list[[2]] <- rename(sem.results.list[[2]], est1 = est)
+sem.results.list[[2]] <- rename(sem.results.list[[2]], pvalue1 = pvalue)
+sem.results.list[[2]] <- rename(sem.results.list[[2]], pcor1 = pcor)
 
-if (writecsvs == 1) {write.csv(x = distance.med.both, file = "output/Distancing_mediation.csv")}  
-if (writecsvs == 1) {write.csv(x = nat.give.med.both, file = "output/National_giving_mediation.csv")}
-if (writecsvs == 1) {write.csv(x = inter.give.med.both, file = "output/International_giving_mediation.csv")}
+# combine results for subsample 1 and subsample 2
+sem.results <- cbind(sem.results.list[[1]], select(sem.results.list[[2]], c("est1", "pvalue1", "pcor1")))
 
-# apply bonferroni correction to models for paths
+# apply Bonferroni corrections to the p values for each category of effect in each subsample 
+sem.results$pcor[grepl("a[0-9]",sem.results$label)] <- p.adjust(
+  sem.results$pvalue[grepl("a[0-9]",sem.results$label)], method = "bonferroni")
+sem.results$pcor[grepl("b[0-9]",sem.results$label)] <- p.adjust(
+  sem.results$pvalue[grepl("b[0-9]",sem.results$label)], method = "bonferroni")
+sem.results$pcor[grepl("indirect",sem.results$label)] <- p.adjust(
+  sem.results$pvalue[grepl("indirect",sem.results$label)], method = "bonferroni")
+sem.results$pcor[sem.results$label == "c"] <- p.adjust(
+  sem.results$pvalue[sem.results$label == "c"], method = "bonferroni")
+sem.results$pcor[sem.results$label == "d"] <- p.adjust(
+  sem.results$pvalue[sem.results$label == "d"], method = "bonferroni")
+sem.results$pcor[sem.results$label == "total"] <- p.adjust(
+  sem.results$pvalue[sem.results$label == "total"], method = "bonferroni")
 
-fa.regress.bon.p1 <- p.adjust(c(distance.regress.both$IV_to_med_p_1,
-                            distance.regress.both$Med_to_DV_p_1,
-                            nat.give.regress.both$Med_to_DV_p_1,
-                            inter.give.regress.both$Med_to_DV_p_1,
-                            c(distance.regress.both$Total_effect_p_1[1],
-                              nat.give.regress.both$Total_effect_p_1[1],
-                              inter.give.regress.both$Total_effect_p_1[1])),
-                           "bon")
-fa.regress.bon.p2 <- p.adjust(c(distance.regress.both$IV_to_med_p_2,
-                            distance.regress.both$Med_to_DV_p_2,
-                            nat.give.regress.both$Med_to_DV_p_2,
-                            inter.give.regress.both$Med_to_DV_p_2,
-                            c(distance.regress.both$Total_effect_p_2[1],
-                              nat.give.regress.both$Total_effect_p_2[1],
-                              inter.give.regress.both$Total_effect_p_2[1])),
-                           "bon")                        
-fa.regress.bon <- bind_cols(as_tibble(fa.regress.bon.p1), as_tibble(fa.regress.bon.p2))
-fa.regress.bon[fa.regress.bon >= 0.01] <- NA
+sem.results$pcor1[grepl("a[0-9]",sem.results$label)] <- p.adjust(
+  sem.results$pvalue1[grepl("a[0-9]",sem.results$label)], method = "bonferroni")
+sem.results$pcor1[grepl("b[0-9]",sem.results$label)] <- p.adjust(
+  sem.results$pvalue1[grepl("b[0-9]",sem.results$label)], method = "bonferroni")
+sem.results$pcor1[grepl("indirect",sem.results$label)] <- p.adjust(
+  sem.results$pvalue1[grepl("indirect",sem.results$label)], method = "bonferroni")
+sem.results$pcor1[sem.results$label == "c"] <- p.adjust(
+  sem.results$pvalue1[sem.results$label == "c"], method = "bonferroni")
+sem.results$pcor1[sem.results$label == "d"] <- p.adjust(
+  sem.results$pvalue1[sem.results$label == "d"], method = "bonferroni")
+sem.results$pcor1[sem.results$label == "total"] <- p.adjust(
+  sem.results$pvalue1[sem.results$label == "total"], method = "bonferroni")
 
-# apply bonferroni correction to overall mediations
-
-fa.med.bon.p1 <- p.adjust(c(distance.med.both$Prop_mediated_p_1,
-                            nat.give.med.both$Prop_mediated_p_1,
-                            inter.give.med.both$Prop_mediated_p_1),
-                           "bon")
-fa.med.bon.p2 <- p.adjust(c(distance.med.both$Prop_mediated_p_2,
-                            nat.give.med.both$Prop_mediated_p_2,
-                            inter.give.med.both$Prop_mediated_p_2),
-                           "bon")
-fa.med.bon <- bind_cols(as_tibble(fa.med.bon.p1), as_tibble(fa.med.bon.p2))
-fa.med.bon[fa.med.bon >= 0.01] <- NA
+if (writecsvs == 1) {write.csv(x = sem.results, file = "output/SEM_results.csv")}
 
 ```
 
@@ -1514,6 +1582,8 @@ fa.med.bon[fa.med.bon >= 0.01] <- NA
 ## Mixed models excluding participants in pilot
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+
+# repeat models from main analysis after removing participants in the pilot analysis (before preregistration)
 
 df1 <- subset(full, AnalysisGroup == 1 & In_pilot == 0)
 df2 <- subset(full, AnalysisGroup == 2 & In_pilot == 0)
@@ -1530,14 +1600,14 @@ c4.mc.risk.list <- lapply(df.list, function(df) {
   c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(c4.mc.risk)
   df.err <- df.err$df_error[1]
-  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err)
+  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err, ci = F)[["d"]]
   c4.mc.risk.coeff.k  <- kable(c4.mc.risk.coeff)  %>% kable_styling()
   print(c4.mc.risk.coeff.k)
   return(c4.mc.risk.coeff)
 })
 
 c4.mc.risk.results <- cbind(c4.mc.risk.list[[1]], c4.mc.risk.list[[2]])
-c4.mc.risk.results <- c4.mc.risk.results[,c(2:9,11:18)]
+c4.mc.risk.results <- c4.mc.risk.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"] = round(c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"], 2)
 c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"])
 c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"])
@@ -1557,14 +1627,14 @@ t.log.lad.list <- lapply(df.list, function(df) {
     df.err <- model_parameters(t.log.lad)
     df.err <- df.err$df_error[1]
   }
-  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err)
+  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err, ci = F)[["d"]]
   t.log.lad.coeff.k  <- kable(t.log.lad.coeff)  %>% kable_styling()
   print(t.log.lad.coeff.k)
   return(t.log.lad.coeff)
 })
 
 t.log.lad.results <- cbind(t.log.lad.list[[1]], t.log.lad.list[[2]])
-t.log.lad.results <- t.log.lad.results[,c(2:9,11:18)]
+t.log.lad.results <- t.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"] = round(t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"], 2)
 t.log.lad.results[,colnames(t.log.lad.results) == "p"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p"])
 t.log.lad.results[,colnames(t.log.lad.results) == "p.1"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p.1"])
@@ -1586,14 +1656,14 @@ d.log.lad.list <- lapply(df.c.list, function(df.c) {
   d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(d.log.lad)
   df.err <- df.err$df_error[1]
-  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
   return(d.log.lad.coeff)
 })
 
 d.log.lad.results <- cbind(d.log.lad.list[[1]], d.log.lad.list[[2]])
-d.log.lad.results <- d.log.lad.results[,c(2:9,11:18)]
+d.log.lad.results <- d.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"] = round(d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"], 2)
 d.log.lad.results[,colnames(d.log.lad.results) == "p"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p"])
 d.log.lad.results[,colnames(d.log.lad.results) == "p.1"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p.1"])
@@ -1605,6 +1675,8 @@ if (writecsvs == 1) {write.csv(x = d.log.lad.results, file = "output/Charity_mod
 ## Mixed models using adjusted age as the predictor
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+
+# repeat models from main analysis using adjusted instead of raw age
 
 df1 <- subset(full, AnalysisGroup == 1)
 df2 <- subset(full, AnalysisGroup == 2)
@@ -1621,14 +1693,14 @@ c4.mc.risk.list <- lapply(df.list, function(df) {
   c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite", standardize = "refit")
   df.err <- model_parameters(c4.mc.risk)
   df.err <- df.err$df_error[1]
-  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err)
+  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err, ci = F)[["d"]]
   c4.mc.risk.coeff.k  <- kable(c4.mc.risk.coeff)  %>% kable_styling()
   print(c4.mc.risk.coeff.k)
   return(c4.mc.risk.coeff)
 })
 
 c4.mc.risk.results <- cbind(c4.mc.risk.list[[1]], c4.mc.risk.list[[2]])
-c4.mc.risk.results <- c4.mc.risk.results[,c(2:9, 11:18)]
+c4.mc.risk.results <- c4.mc.risk.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"] = round(c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"], 2)
 c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"])
 c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"])
@@ -1648,14 +1720,14 @@ t.log.lad.list <- lapply(df.list, function(df) {
     df.err <- model_parameters(t.log.lad)
     df.err <- df.err$df_error[1]
   }
-  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err)
+  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err, ci = F)[["d"]]
   t.log.lad.coeff.k  <- kable(t.log.lad.coeff)  %>% kable_styling()
   print(t.log.lad.coeff.k)
   return(t.log.lad.coeff)
 })
 
 t.log.lad.results <- cbind(t.log.lad.list[[1]], t.log.lad.list[[2]])
-t.log.lad.results <- t.log.lad.results[,c(2:9, 11:18)]
+t.log.lad.results <- t.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"] = round(t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"], 2)
 t.log.lad.results[,colnames(t.log.lad.results) == "p"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p"])
 t.log.lad.results[,colnames(t.log.lad.results) == "p.1"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p.1"])
@@ -1678,14 +1750,14 @@ d.log.lad.list <- lapply(df.c.list, function(df) {
     d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
     df.err <- model_parameters(d.log.lad)
     df.err <- df.err$df_error[1]
-    d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
+    d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
     d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
     print(d.log.lad.coeff.k)
     return(d.log.lad.coeff)
 })
 
 d.log.lad.results <- cbind(d.log.lad.list[[1]], d.log.lad.list[[2]])
-d.log.lad.results <- d.log.lad.results[,c(2:9, 11:18)]
+d.log.lad.results <- d.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
 d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"] = round(d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"], 2)
 d.log.lad.results[,colnames(d.log.lad.results) == "p"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p"])
 d.log.lad.results[,colnames(d.log.lad.results) == "p.1"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p.1"])
@@ -1694,9 +1766,52 @@ if (writecsvs == 1) {write.csv(x = d.log.lad.results, file = "output/Charity_mod
 
 ```
 
+## Mixed models of distancing controlling for health condition
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+
+# repeat models from main analysis including additional control
+
+# always reset dataframes from full before the next analysis
+df1 <- subset(full, AnalysisGroup == 1)
+df2 <- subset(full, AnalysisGroup == 2)
+df.list <- list(df1,df2)
+
+# standardise continuous variables for models
+df.list <- lapply(df.list, function(df) {
+  df[,c("generosity_sum_logit", "age", "Ladder", "Contct4M", "risk1", "health_cond")] <- scale(df[,c("generosity_sum_logit", "age", "Ladder", "Contct4M", "risk1", "health_cond")])
+  return(df)
+})
+
+# model distancing (note. Contct4M is the mean of the 4-item distancing measure and higher scores always = more distancing)
+c4.mc.risk.list <- lapply(df.list, function(df) {
+  c4.mc.risk <- lmer(Contct4M ~ sex + risk1 + health_cond + age + (1 | Country) + (0 + risk1 | Country) + (0 + health_cond | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite", standardize = "refit")
+  df.err <- model_parameters(c4.mc.risk)
+  df.err <- df.err$df_error[1]
+  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err, ci = F)[["d"]]
+  c4.mc.risk.coeff.k  <- kable(c4.mc.risk.coeff)  %>% kable_styling()
+  print(c4.mc.risk.coeff.k)
+  return(c4.mc.risk.coeff)
+})
+
+# combine results from both subsamples, select columns for output and format then write csv
+c4.mc.risk.results <- cbind(c4.mc.risk.list[[1]], c4.mc.risk.list[[2]])
+c4.mc.risk.results <- c4.mc.risk.results[,c(2:3,5:9,11, 13:14,16:20,22)]
+c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"] = round(c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"], 2)
+c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"])
+c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"])
+rownames(c4.mc.risk.results) <- c("Intercept", "Gender (F > M)", "Perceived risk", "Health condition", "Age")
+if (writecsvs == 1) {write.csv(x = c4.mc.risk.results, file = "output/Distancing_model_results_health.csv")}
+
+
+```
+
 ## Mixed models of donations without controlling for subjective wealth
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+
+# repeat models from main analysis without control
 
 df.c.list <- list(df.c1,df.c2)
 
@@ -1720,7 +1835,7 @@ d.log.lad.list <- lapply(df.c.list, function(df) {
   df.err <- model_parameters(d.log)
   df.err <- df.err$df_error[1]
   }
-  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err)
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
   d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
   print(d.log.lad.coeff.k)
   return(compare)
@@ -1731,6 +1846,8 @@ d.log.lad.list <- lapply(df.c.list, function(df) {
 ## Plots over time
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, fig.align="center", fig.height=9.2}
+
+# extract the data needed for the plots
 
 dates <- full %>% 
   select(c("date_count", "RecordDate", "world_total_deaths", "world_rolling_deaths")) %>%
@@ -1747,6 +1864,8 @@ dates <- dates[order(dates$date_count),]
 
 date.results <- data.frame(dates[,1:2], matrix(data = NA, nrow = nrow(dates), ncol = 4), dates[,3:4])
 names(date.results) <- c("date_count", "date", "prosocial1", "prosocial2", "prosocial3", "n", "total_deaths", "rolling_deaths")
+
+# for each date calculate the effect of age for each outcome
 
 for (c in dates$date_count) {
   
@@ -1767,6 +1886,8 @@ for (c in dates$date_count) {
 date.breaks <- date.results$date_count[seq(1, nrow(date.results), 2)]
 date.labs <- date.results$date[seq(1, nrow(date.results), 2)]
 
+# create a long version of the data
+
 date.results.long <- date.results %>%
   tidyr:: pivot_longer(
     c("prosocial1", "prosocial2", "prosocial3"),
@@ -1778,10 +1899,12 @@ date.results.long <- date.results %>%
                           labels = c("international", "national", "distancing"))) %>%
   dplyr::rename("beta" = "value")
 
+# plot a heatmap of the effect sizes on each day
+
 plot.date.prosocial <- ggplot(date.results.long, aes(x = date_count, y = outcome, fill = beta)) +
   geom_tile() +
   scale_x_continuous(name = NULL, breaks = date.breaks, labels = date.labs) + 
-  scale_y_discrete(breaks = c("international", "national", "distancing"), labels = c("International\ngiving", "National\ngiving", "Distancing")) +
+  scale_y_discrete(breaks = c("international", "national", "distancing"), labels = c("International\ndonations", "National\ndonations", "Distancing")) +
   scale_fill_gradient2(low = neg.corr.col, mid = "white", high = pos.corr.col, midpoint = 0, limits = c(-0.34, 0.34), na.value = "#ECECEC", name = expression(beta)) +
   theme_classic() +
   theme(
@@ -1796,6 +1919,8 @@ plot.date.prosocial <- ggplot(date.results.long, aes(x = date_count, y = outcome
         plot.margin = margin(0.5,0.5,0.5,0.5, "cm"))
 
 # print(plot.date.prosocial)
+
+# plot the covid total deaths on each day
 
 plot.date.total <- ggplot(date.results, aes(x = date_count, y = total_deaths)) + 
   geom_point() +  
@@ -1812,6 +1937,8 @@ plot.date.total <- ggplot(date.results, aes(x = date_count, y = total_deaths)) +
 
 # print(plot.date.total)
 
+# plot the covid death rates on each day
+
 plot.date.rolling <- ggplot(date.results, aes(x = date_count, y = rolling_deaths)) + 
   geom_point() + 
   scale_x_continuous(name = "Date", breaks = date.breaks, labels = date.labs) + 
@@ -1827,6 +1954,8 @@ plot.date.rolling <- ggplot(date.results, aes(x = date_count, y = rolling_deaths
 
 # print(plot.date.rolling)
 
+# create multi-panel figure
+
 if (saveplots == 1) {filename <- paste0("plots/Dates.tiff")
 tiff(filename, units="in", res = resolution, width = plotW * 2, height = plotH * 2.3)}
 
@@ -1839,6 +1968,8 @@ if (saveplots == 1) {dev.off()}
 ```
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, fig.align="center", fig.width=12, fig.height=14.4}
+
+# calculate the sample size for each country and combine with income data
 
 df.vio.n <- full %>% 
   dplyr::group_by(Country) %>% 
@@ -1858,6 +1989,8 @@ df.vio$Country <- reorder(df.vio$Country, df.vio$x2018GNI)
 
 dc.missing <- unique(as.character(df.vio$ISO3[is.na(df.vio$date_count) & df.vio$ISO3 != "BRA" & df.vio$ISO3 != "GHA" & df.vio$ISO3 != "IND" & df.vio$ISO3 != "MEX" & df.vio$ISO3 != "COL"]))
 
+# countries had dates in different format, checked manually and info included in a csv file
+
 df.date <- read.csv("data/Date_formats.csv", sep = ",", header = TRUE, na.strings = "NaN", stringsAsFactors = F)
 
 df.date$Start.date <- as.Date(df.date$Start.date, "%d/%m/%Y")
@@ -1870,6 +2003,8 @@ df.vio$date2 <- as.Date(df.vio$RecordDate, "%d/%m/%Y")
 datecounts <- df.vio %>% select(c("date_count", "date2"))
 datecounts <- unique(datecounts)
 datecounts$date2[datecounts$date_count == 29] <- as.Date("21/05/2020", "%d/%m/%Y")
+
+# combine all required information
 
 for (dm in dc.missing) {
   df.vio$got_dates[df.vio$ISO3 == dm] <- 0
@@ -1900,7 +2035,11 @@ for (dm in dc.missing) {
   }
 }
 
+# some countries missing exact data collection dates so mark to differentiate in plot
+
 df.vio$got_dates <- factor(df.vio$got_dates)
+
+# create plot
 
 if (saveplots == 1) {tiff("plots/Date_violin.tiff", units="in", res = resolution, width = plotW*3, height = plotH*3.6)}
 
@@ -1936,10 +2075,13 @@ if (saveplots == 1) {dev.off()}
 df.uk1 <- read.csv("data/Part1_UK_Covid19_full_totals.csv", sep = ",", header = TRUE, na.strings = "NaN", fileEncoding = "latin1", stringsAsFactors = F)
 df.uk2 <- read.csv("data/Part2_UK_Covid19_full_totals.csv", sep = ",", header = TRUE, na.strings = "NaN", fileEncoding = "latin1", stringsAsFactors = F)
 
-# checked these files manually - no ages under 18 or over 100, no participant with data in both parts failed enter number attention check (1 person failed in p1)
+# checked these files manually - 
+# no ages under 18 or over 100, no participant with data in both parts failed enter number attention check
 
 df.uk1 <- as_tibble(df.uk1)
 df.uk2 <- as_tibble(df.uk2)
+
+# combine data from two rounds of testing
 
 df.uk <- inner_join(df.uk1, df.uk2, by = "Prolific.ID", suffix = c("_part1", "_part2")) %>% 
   dplyr::select(starts_with(c(
@@ -1957,16 +2099,11 @@ columns <- colnames(df.uk.long)
 columns <- columns[3:length(columns)]
 
 uk.cors <- sapply(columns, function(col) {
-  # hist(col)
   nrows <- nrow(df.uk.long[,colnames(df.uk.long) == col])
   p1s <- df.uk.long[df.uk.long$part == 1,colnames(df.uk.long) == col]
   colnames(p1s) <- "part1"
   p2s <- df.uk.long[df.uk.long$part == 2,colnames(df.uk.long) == col]
   colnames(p2s) <- "part2"
-  colcor <- rcorr(p1s$part1, p2s$part2, type= "pearson")
-  colr.p <- colcor$r[1,2]
-  colcor <- rcorr(p1s$part1, p2s$part2, type= "spearman")
-  colr.s <- colcor$r[1,2]
   ps <- bind_cols(p1s, p2s)
   
   if (grepl ('average', col) | grepl ('sum', col)) {
@@ -1975,10 +2112,130 @@ uk.cors <- sapply(columns, function(col) {
   
   col.icc <- icc(ps, model = "twoway", type = "agreement", unit = unit)
   colr.i <- col.icc$value
-  colr <- c(colr.p, colr.s, colr.i)})
+  })
 
 uk.cors <- as_tibble(uk.cors, rownames = NA)
 
 if (writecsvs == 1) {write.csv(x = uk.cors, file = "output/UK_test_retest_results.csv")}
+
+```
+
+## Mixed models excluding student participants
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+
+# repeat models from main analysis after removing student participants
+
+df1 <- subset(full, AnalysisGroup == 1 & employ_status != 4)
+df2 <- subset(full, AnalysisGroup == 2 & employ_status != 4)
+
+df.list <- list(df1,df2)
+
+df.list <- lapply(df.list, function(df) {
+  df[,c("generosity_sum_logit", "age", "Ladder", "Contct4M", "risk1")] <- scale(df[,c("generosity_sum_logit", "age", "Ladder", "Contct4M", "risk1")])
+  return(df)
+})
+
+c4.mc.risk.list <- lapply(df.list, function(df) {
+  c4.mc.risk <- lmer(Contct4M ~ sex + risk1 + age + (1 | Country) + (0 + risk1 | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  c4.mc.risk.coeff <- model_parameters(c4.mc.risk, df_method = "satterthwaite", standardize = "refit")
+  df.err <- model_parameters(c4.mc.risk)
+  df.err <- df.err$df_error[1]
+  c4.mc.risk.coeff$d <- t_to_d(c4.mc.risk.coeff$t, df.err, ci = F)[["d"]]
+  c4.mc.risk.coeff.k  <- kable(c4.mc.risk.coeff)  %>% kable_styling()
+  print(c4.mc.risk.coeff.k)
+  return(c4.mc.risk.coeff)
+})
+
+c4.mc.risk.results <- cbind(c4.mc.risk.list[[1]], c4.mc.risk.list[[2]])
+c4.mc.risk.results <- c4.mc.risk.results[,c(2:3,5:9,11, 13:14,16:20,22)]
+c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"] = round(c4.mc.risk.results[,colnames(c4.mc.risk.results) != "p" & colnames(c4.mc.risk.results) != "p.1"], 2)
+c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p"])
+c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"] = pvalr(c4.mc.risk.results[,colnames(c4.mc.risk.results) == "p.1"])
+rownames(c4.mc.risk.results) <- c("Intercept", "Gender (F > M)", "Perceived risk", "Age")
+if (writecsvs == 1) {write.csv(x = c4.mc.risk.results, file = "output/Distancing_model_results_no_students.csv")}
+
+t.log.lad.list <- lapply(df.list, function(df) {
+  t.log.lad <- lmer(generosity_sum_logit ~ sex + Ladder + age + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  t.log.lad.sq <- lmer(generosity_sum_logit ~ sex + Ladder + poly(age,2,raw = TRUE) + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  compare <- anova(t.log.lad,t.log.lad.sq) # squared age sig better
+  if (compare$`Pr(>Chisq)`[[2]] < 0.05) {
+    t.log.lad.coeff <- model_parameters(t.log.lad.sq, df_method = "satterthwaite", standardize = "refit")
+    df.err <- model_parameters(t.log.lad.sq)
+    df.err <- df.err$df_error[1]
+  } else {
+    t.log.lad.coeff <- model_parameters(t.log.lad, df_method = "satterthwaite", standardize = "refit")
+    df.err <- model_parameters(t.log.lad)
+    df.err <- df.err$df_error[1]
+  }
+  t.log.lad.coeff$d <- t_to_d(t.log.lad.coeff$t, df.err, ci = F)[["d"]]
+  t.log.lad.coeff.k  <- kable(t.log.lad.coeff)  %>% kable_styling()
+  print(t.log.lad.coeff.k)
+  return(t.log.lad.coeff)
+})
+
+t.log.lad.results <- cbind(t.log.lad.list[[1]], t.log.lad.list[[2]])
+t.log.lad.results <- t.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
+t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"] = round(t.log.lad.results[,colnames(t.log.lad.results) != "p" & colnames(t.log.lad.results) != "p.1"], 2)
+t.log.lad.results[,colnames(t.log.lad.results) == "p"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p"])
+t.log.lad.results[,colnames(t.log.lad.results) == "p.1"] = pvalr(t.log.lad.results[,colnames(t.log.lad.results) == "p.1"])
+rownames(t.log.lad.results) <- c("Intercept", "Gender (F > M)", "Subjective wealth", "Age (linear)", "Age (quadratic)")
+if (writecsvs == 1) {write.csv(x = t.log.lad.results, file = "output/Giving_sum_model_results_no_students.csv")}
+
+df.c1 <- subset(full.c, AnalysisGroup == 1 & In_pilot == 0)
+df.c2 <- subset(full.c, AnalysisGroup == 2 & In_pilot == 0)
+
+df.c.list <- list(df.c1,df.c2)
+
+df.c.list <- lapply(df.c.list, function(df.c) {
+  df.c[,c("donated_logit", "age", "Ladder")] <- scale(df.c[,c("donated_logit", "age", "Ladder")])
+  return(df.c)
+})
+
+d.log.lad.list <- lapply(df.c.list, function(df.c) {
+  d.log.lad <- lmer(donated_logit ~ sex + Ladder + age * charity + (1 | Country) + (0 + Ladder | Country) + (0 + age | Country), data = df.c, control = lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+  d.log.lad.coeff <- model_parameters(d.log.lad, df_method = "satterthwaite", standardize = "refit")
+  df.err <- model_parameters(d.log.lad)
+  df.err <- df.err$df_error[1]
+  d.log.lad.coeff$d <- t_to_d(d.log.lad.coeff$t, df.err, ci = F)[["d"]]
+  d.log.lad.coeff.k  <- kable(d.log.lad.coeff)  %>% kable_styling()
+  print(d.log.lad.coeff.k)
+  return(d.log.lad.coeff)
+})
+
+d.log.lad.results <- cbind(d.log.lad.list[[1]], d.log.lad.list[[2]])
+d.log.lad.results <- d.log.lad.results[,c(2:3,5:9,11, 13:14,16:20,22)]
+d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"] = round(d.log.lad.results[,colnames(d.log.lad.results) != "p" & colnames(d.log.lad.results) != "p.1"], 2)
+d.log.lad.results[,colnames(d.log.lad.results) == "p"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p"])
+d.log.lad.results[,colnames(d.log.lad.results) == "p.1"] = pvalr(d.log.lad.results[,colnames(d.log.lad.results) == "p.1"])
+rownames(d.log.lad.results) <- c("Intercept", "Gender (F > M)", "Subjective wealth", "Age", "Charity (I > N)", "Age * Charity")
+if (writecsvs == 1) {write.csv(x = d.log.lad.results, file = "output/Charity_model_results_no_students.csv")}
+
+```
+
+## Change in wellbeing
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.align="center", fig.width=8, fig.height=6.4}
+
+df.uk$wellbeing_diff <- df.uk$psych_wellbeing_average_part2 - df.uk$psych_wellbeing_average_part1
+
+wellbeing.diff.corr <- cor.test(df.uk$age_part1, df.uk$wellbeing_diff)
+
+filename <- paste0("plots/Change_wellbeing.tiff")
+if (saveplots == 1) {tiff(filename, units="in", res = resolution, width = plotW*2, height = (plotH * 1.6))}
+
+plot.age.well <- ggplot(df.uk, aes(x = age_part1, y = wellbeing_diff)) + 
+  geom_point(color = dotcols[1], shape = 21, fill = NA, alpha = 0.3, size = 1, show.legend = FALSE) + 
+  geom_smooth(color = dotcols[1], fill = dotcols[1], linetype = "solid", method = "lm", formula = y ~ x, alpha = 0.3, size = 0.75, show.legend = FALSE) + 
+  scale_x_continuous(name = "Age") +
+  ylab(expression(italic("← decrease     ")~paste(Delta," wellbeing ")~italic("     increase→"))) +
+  theme_classic() + 
+  theme(axis.text.y = element_markdown(size = axtext),
+        axis.text.x = element_text(size = axtext),
+        axis.title.x = element_text(size = axtitle),
+        axis.title.y = element_text(size = axtitle))
+plot.age.well
+
+if (saveplots == 1) {dev.off()}
 
 ```

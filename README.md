@@ -4,8 +4,6 @@ Data for the study comes from the [International Collaboration on the Social & M
 
 [Click here to view plots and main results](https://github.com/SDN-lab/Analysis_age_prosocial/blob/master/Analysis.md)
 
-[Click here for scripts to prepare the data (average scales and add country-level variables)](https://github.com/jocutler/ICSMP_COVID-19_SDN_lab)
-
 Plots include:
 
 - i) association between age and prosocial behaviour (including controlling for objective wealth and adjusting age for life expectancy)
