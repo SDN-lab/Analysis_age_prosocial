@@ -1,4 +1,4 @@
-**This folder contains the script to run analysis for the paper on age and prosocial behaviour**
+**This folder contains the script to run analysis for [Cutler, Nitschke, Lamm & Lockwood, 2021, Nature Aging](https://doi.org/10.1038/s43587-021-00118-3)**
 
 Data for the study comes from the [International Collaboration on the Social & Moral Psychology of COVID-19](https://icsmp-covid19.netlify.app/)
 
